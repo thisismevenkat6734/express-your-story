@@ -1,1281 +1,829 @@
 /* =========================================================
    EXPRESS YOUR STORY
-   Every Feeling Deserves a Voice.
    File: script.js
-
-   Frontend interactions and form validation.
-   Firebase, Firestore and Cloudinary publishing must be
-   connected and security-tested before production use.
+   Compatible with index.html and style.css
    ========================================================= */
 
-"use strict";
+const App = (() => {
+  "use strict";
 
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) =>
-  Array.from(root.querySelectorAll(selector));
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) =>
+    Array.from(root.querySelectorAll(selector));
 
-const state = {
-  authMode: "login",
-  selectedTemplate: "Romantic Love",
-  currentFeeling: "",
-  selectedPostFile: null,
-  selectedAudioFile: null,
-  selectedStoryFile: null,
-  selectedProfileFile: null,
-  letterPreviewDialog: null
-};
+  const state = {
+    currentPage: "home",
+    authMode: "login",
+    selectedFeeling: "",
+    selectedTemplate: "custom",
+    currentConversation: null,
+    notifications: [],
+    posts: [],
+    feelings: [],
+    stories: [],
+    letters: [],
+    searchResults: [],
+    friends: [],
+    friendRequests: [],
+    conversations: [],
+    profile: {
+      displayName: "",
+      bio: "",
+      visibility: "private",
+      photoUrl: ""
+    },
+    firebaseReady: false,
+    currentUser: null
+  };
 
-const FEELINGS = [
-  "Happy",
-  "Sad",
-  "Angry",
-  "Confused",
-  "Frustrated",
-  "Lonely",
-  "In Love",
-  "Peaceful",
-  "Motivated",
-  "Hopeful",
-  "Anxious",
-  "Grateful"
-];
+  const pageTitles = {
+    home: "A place to be yourself.",
+    auth: "Your story starts here.",
+    feelings: "Make room for your feelings.",
+    stories: "Little moments, lasting memories.",
+    letters: "Letters from the heart.",
+    messages: "A conversation with care.",
+    friends: "Your people.",
+    profile: "Your story, your identity.",
+    notifications: "Stay in the loop.",
+    terms: "Clear expectations.",
+    privacy: "Your information matters."
+  };
 
-const LETTER_TEMPLATES = {
-  "Romantic Love": {
-    title: "A Little Piece of My Heart",
-    greeting: "Dear you,",
-    body:
-      "There is something beautiful about the way you make ordinary moments feel special.\n\n" +
-      "Sometimes words are not enough to explain what someone means to us. " +
-      "Still, I want to try, because some feelings deserve to be expressed.\n\n" +
-      "You have become a beautiful thought in my day, a reason to smile, " +
-      "and a reminder that little moments can mean so much.\n\n" +
-      "With all my sincerity,\nSomeone who cares"
-  },
+  const templateText = {
+    love: "I wanted to tell you something that comes from my heart...",
+    confession: "There is something I have wanted to tell you...",
+    apology: "I have been thinking about what happened, and I want to say...",
+    gratitude: "I want you to know how grateful I am for...",
+    friendship: "Our friendship means more to me than words can explain...",
+    missing: "There are moments when I wish you were here...",
+    birthday: "Today is a special day because the world was given someone like you...",
+    encouragement: "I want you to remember how strong and capable you are...",
+    closure: "There are a few things I need to express so I can move forward...",
+    unsent: "These are words I need to write, even if I never send them...",
+    future: "Dear future me, I hope you remember...",
+    custom: ""
+  };
 
-  "Deep Feelings": {
-    title: "What My Heart Has Been Holding",
-    greeting: "Dear you,",
-    body:
-      "There are feelings I have carried quietly for a long time.\n\n" +
-      "They are not always easy to explain, but they are real. " +
-      "Some people leave a mark on our hearts simply by being themselves.\n\n" +
-      "I wanted to give these thoughts a place to exist, without pretending " +
-      "that every feeling can be explained perfectly.\n\n" +
-      "Written honestly,\nFrom the heart"
-  },
+  const safeText = (value) =>
+    String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[character]);
 
-  "First Love": {
-    title: "The Beginning of Something Beautiful",
-    greeting: "Dear you,",
-    body:
-      "I do not know exactly when it began.\n\n" +
-      "Maybe it was a smile, a conversation, or one ordinary moment " +
-      "that stayed in my thoughts longer than I expected.\n\n" +
-      "Whatever the reason, this feeling has become something special to me. " +
-      "I wanted to write it down, even if I am still learning how to express it.\n\n" +
-      "With a little courage,\nFrom me"
-  },
+  const initials = (name) => {
+    const value = String(name || "Y").trim();
+    return value ? Array.from(value)[0].toUpperCase() : "Y";
+  };
 
-  "Love Confession": {
-    title: "Something I Have Wanted to Say",
-    greeting: "Dear you,",
-    body:
-      "I have been wanting to tell you something honestly.\n\n" +
-      "I have started to feel something special for you. I do not expect " +
-      "you to feel the same, and I respect whatever your answer may be.\n\n" +
-      "I simply wanted you to know how I feel, instead of keeping these " +
-      "words inside forever.\n\n" +
-      "Thank you for listening,\nFrom my heart"
-  },
+  function showToast(message) {
+    const toast = $("#toast");
+    if (!toast) return;
 
-  "Missing You": {
-    title: "You Cross My Mind",
-    greeting: "Dear you,",
-    body:
-      "Some days, a familiar thought brings you back into my mind.\n\n" +
-      "It might be a song, a place, or a small memory that suddenly " +
-      "feels important again.\n\n" +
-      "Distance and time can change our days, but meaningful memories " +
-      "often remain close to us.\n\n" +
-      "Thinking of you,\nFrom me"
-  },
+    toast.textContent = message;
+    toast.hidden = false;
 
-  "Anniversary": {
-    title: "Another Chapter of Us",
-    greeting: "My dear,",
-    body:
-      "Today gives me another reason to appreciate the moments we have shared.\n\n" +
-      "Every conversation, every lesson, and every memory has helped shape " +
-      "our story in its own way.\n\n" +
-      "May we continue to treat each other with kindness, patience, " +
-      "honesty, and care.\n\n" +
-      "With love and appreciation,\nAlways"
-  },
-
-  "Long Distance": {
-    title: "A Heart Beyond the Miles",
-    greeting: "Dear you,",
-    body:
-      "The miles between places can feel large, especially when someone " +
-      "matters to you.\n\n" +
-      "Even so, a thoughtful message or a familiar memory can make a distant " +
-      "day feel a little closer.\n\n" +
-      "I hope we continue to find ways to communicate honestly and appreciate " +
-      "the moments we get to share.\n\n" +
-      "Until we meet again,\nWith care"
-  },
-
-  "Apology Letter": {
-    title: "I Want to Make Things Right",
-    greeting: "Dear you,",
-    body:
-      "I have been thinking about what happened and how my words or actions " +
-      "may have affected you.\n\n" +
-      "I am sorry for the hurt I caused. I do not want to dismiss your feelings " +
-      "or make excuses for my mistakes.\n\n" +
-      "I understand that rebuilding trust takes time, and I will respect " +
-      "the space you need.\n\n" +
-      "Sincerely,\nFrom me"
-  },
-
-  "Poetic Love": {
-    title: "A Thought Written in Starlight",
-    greeting: "Dear you,",
-    body:
-      "Some feelings arrive like the first light of morning,\n" +
-      "Quietly changing the colour of an ordinary day.\n\n" +
-      "Some memories become little stars,\n" +
-      "Still shining when the evening turns grey.\n\n" +
-      "And some people remind us,\n" +
-      "That even simple moments can hold extraordinary meaning.\n\n" +
-      "With gentle thoughts,\nFrom my heart"
-  },
-
-  "Vintage Love": {
-    title: "A Letter Worth Keeping",
-    greeting: "My dear,",
-    body:
-      "If these words were written on an old sheet of paper, " +
-      "I would hope you could feel the care behind every line.\n\n" +
-      "Some things are worth slowing down for: an honest conversation, " +
-      "a thoughtful gesture, and a memory that grows more meaningful with time.\n\n" +
-      "May this little letter remind you that sincerity never goes out of style.\n\n" +
-      "Yours with affection,\nFrom me"
-  },
-
-  "Cute Love": {
-    title: "A Tiny Letter With Big Feelings",
-    greeting: "Hey you,",
-    body:
-      "Just a small reminder that someone is thinking of you today.\n\n" +
-      "You have a way of making little things feel brighter, and that " +
-      "deserves to be appreciated.\n\n" +
-      "So here is a tiny letter carrying a very simple message: " +
-      "you matter, and I hope today gives you a reason to smile.\n\n" +
-      "Sending a little happiness,\nFrom me"
-  },
-
-  "Forever Love": {
-    title: "A Promise to Keep Choosing Kindness",
-    greeting: "My dear,",
-    body:
-      "Love is not only about beautiful words or unforgettable moments.\n\n" +
-      "It is also about honesty, respect, patience, and showing up " +
-      "for each other through ordinary days.\n\n" +
-      "Whatever the future brings, I hope we always remember that " +
-      "a meaningful bond deserves care from both hearts.\n\n" +
-      "With sincere affection,\nAlways"
-  }
-};
-
-/* ---------------------------------------------------------
-   SAFE UI HELPERS
---------------------------------------------------------- */
-
-function setMessage(element, message, type = "") {
-  if (!element) return;
-
-  element.textContent = message;
-  element.classList.remove("error", "success");
-
-  if (type === "error" || type === "success") {
-    element.classList.add(type);
-  }
-}
-
-function showGlobalMessage(message, type = "") {
-  const box = $("#globalMessage");
-  if (!box) return;
-
-  box.textContent = message;
-  box.classList.remove("error", "success");
-
-  if (type) box.classList.add(type);
-
-  box.hidden = false;
-}
-
-function clearMessage(element) {
-  if (!element) return;
-  element.textContent = "";
-  element.classList.remove("error", "success");
-}
-
-function showPage(pageName) {
-  const target = document.getElementById(pageName);
-
-  if (!target || !target.classList.contains("page")) {
-    return false;
-  }
-
-  $$(".page").forEach(page => {
-    const active = page === target;
-    page.classList.toggle("active", active);
-    page.setAttribute("aria-hidden", String(!active));
-  });
-
-  $$("[data-page]").forEach(link => {
-    const active = link.dataset.page === pageName;
-
-    if (link.classList.contains("nav-link")) {
-      if (active) {
-        link.classList.add("active");
-      } else {
-        link.classList.remove("active");
-      }
-
-      if (active) {
-        link.setAttribute("aria-current", "page");
-      } else {
-        link.removeAttribute("aria-current");
-      }
+    if (state.toastTimeout) {
+      clearTimeout(state.toastTimeout);
     }
-  });
 
-  closeMobileMenu();
-
-  if (window.location.hash !== "#" + pageName) {
-    history.replaceState(null, "", "#" + pageName);
+    state.toastTimeout = setTimeout(() => {
+      toast.hidden = true;
+    }, 3200);
   }
 
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  return true;
-}
+  function setFormMessage(id, message, type = "") {
+    const element = document.getElementById(id);
+    if (!element) return;
 
-function navigateFromHash() {
-  const pageName = decodeURIComponent(
-    window.location.hash.replace(/^#/, "")
-  );
-
-  if (!pageName) {
-    showPage("home");
-    return;
+    element.textContent = message;
+    element.classList.toggle("error-message", type === "error");
+    element.classList.toggle("success-message", type === "success");
   }
 
-  if (!showPage(pageName)) {
-    showPage("home");
-  }
-}
-
-/* ---------------------------------------------------------
-   NAVIGATION AND MOBILE MENU
---------------------------------------------------------- */
-
-function closeMobileMenu() {
-  const sidebar = $("#sidebar");
-  const toggle = $("#menuToggle");
-
-  if (sidebar) sidebar.classList.remove("open");
-
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.setAttribute("aria-label", "Open navigation");
-  }
-}
-
-function toggleMobileMenu() {
-  const sidebar = $("#sidebar");
-  const toggle = $("#menuToggle");
-
-  if (!sidebar || !toggle) return;
-
-  const opened = sidebar.classList.toggle("open");
-
-  toggle.setAttribute("aria-expanded", String(opened));
-  toggle.setAttribute(
-    "aria-label",
-    opened ? "Close navigation" : "Open navigation"
-  );
-}
-
-function initNavigation() {
-  const toggle = $("#menuToggle");
-
-  if (toggle) {
-    toggle.addEventListener("click", toggleMobileMenu);
-  }
-
-  $$("[data-page]").forEach(link => {
-    link.addEventListener("click", event => {
-      const pageName = link.dataset.page;
-
-      if (!pageName) return;
-
-      event.preventDefault();
-      showPage(pageName);
-    });
-  });
-
-  window.addEventListener("hashchange", navigateFromHash);
-
-  document.addEventListener("click", event => {
-    const sidebar = $("#sidebar");
-    const menuButton = $("#menuToggle");
-
-    if (!sidebar || !menuButton) return;
-    if (!sidebar.classList.contains("open")) return;
-
-    if (
-      !sidebar.contains(event.target) &&
-      !menuButton.contains(event.target)
-    ) {
-      closeMobileMenu();
-    }
-  });
-
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeMobileMenu();
-  });
-
-  navigateFromHash();
-}
-
-/* ---------------------------------------------------------
-   BACKEND STATUS
-
-   Never claim a user is logged in or that content is saved
-   until Firebase Authentication and Firestore are connected.
---------------------------------------------------------- */
-
-function initBackendStatus() {
-  const accountStatus = $("#accountStatus");
-  const feed = $("#feedList");
-
-  if (accountStatus) {
-    accountStatus.textContent =
-      "Authentication is not connected yet. Sign-in is unavailable until Firebase is configured.";
-  }
-
-  if (feed) {
-    const message = document.createElement("p");
-    message.className = "muted-text";
-    message.textContent =
-      "The feed is waiting for the authenticated Firestore integration.";
-    feed.appendChild(message);
-  }
-
-  const authMessage = $("#authMessage");
-
-  if (authMessage) {
-    setMessage(
-      authMessage,
-      "Firebase Authentication has not been connected yet."
+  function requireFirebase(message) {
+    showToast(
+      message ||
+      "Firebase is not connected yet. This action needs backend integration."
     );
   }
-}
 
-/* ---------------------------------------------------------
-   AUTHENTICATION FORM UI
+  // ---------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------
 
-   This validates inputs but does not simulate successful
-   login, signup, password reset or email verification.
---------------------------------------------------------- */
+  function navigate(page) {
+    if (!Object.prototype.hasOwnProperty.call(pageTitles, page)) {
+      return;
+    }
 
-function setAuthMode(mode) {
-  if (mode !== "login" && mode !== "signup") return;
+    state.currentPage = page;
 
-  state.authMode = mode;
-
-  const signup = mode === "signup";
-  const nameField = $("#displayNameField");
-  const termsField = $("#termsAcceptance");
-  const nameInput = $("#displayName");
-  const termsInput = $("#acceptTerms");
-  const passwordInput = $("#authPassword");
-  const heading = $("#authHeading");
-  const submit = $("#authSubmitButton");
-  const reset = $("#resetPasswordButton");
-
-  if (nameField) nameField.hidden = !signup;
-  if (termsField) termsField.hidden = !signup;
-  if (nameInput) nameInput.required = signup;
-  if (termsInput) termsInput.required = signup;
-
-  if (passwordInput) {
-    passwordInput.autocomplete = signup
-      ? "new-password"
-      : "current-password";
-  }
-
-  if (heading) {
-    heading.textContent = signup
-      ? "Create your own space."
-      : "Come as you are.";
-  }
-
-  if (submit) {
-    submit.textContent = signup ? "Create account" : "Log in";
-  }
-
-  if (reset) reset.hidden = signup;
-
-  $$("[data-auth-mode]").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.authMode === mode
-    );
-  });
-
-  clearMessage($("#authMessage"));
-}
-
-function initAuthenticationUI() {
-  $$("[data-auth-mode]").forEach(button => {
-    button.addEventListener("click", () => {
-      setAuthMode(button.dataset.authMode);
+    $$(".page").forEach((section) => {
+      section.hidden = section.id !== page;
     });
-  });
 
-  const authForm = $("#authForm");
+    $$(".nav-link[data-page]").forEach((button) => {
+      const active = button.dataset.page === page;
+      button.classList.toggle("active", active);
 
-  if (authForm) {
-    authForm.addEventListener("submit", event => {
+      if (active) {
+        button.setAttribute("aria-current", "page");
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    });
+
+    const heading = $("#pageHeading");
+    if (heading) heading.textContent = pageTitles[page];
+
+    document.body.classList.remove("sidebar-open");
+
+    const menuButton = $("#menuButton");
+    if (menuButton) menuButton.setAttribute("aria-expanded", "false");
+
+    const backdrop = $("#sidebarBackdrop");
+    if (backdrop) backdrop.hidden = true;
+
+    const moreMenu = $("#moreMenu");
+    if (moreMenu) moreMenu.hidden = true;
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function setupNavigation() {
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+      if (!button) return;
+
       event.preventDefault();
+      navigate(button.dataset.page);
+    });
 
-      if (!authForm.reportValidity()) return;
+    const menuButton = $("#menuButton");
+    const backdrop = $("#sidebarBackdrop");
 
+    function closeSidebar() {
+      document.body.classList.remove("sidebar-open");
+      if (menuButton) menuButton.setAttribute("aria-expanded", "false");
+      if (backdrop) backdrop.hidden = true;
+    }
+
+    menuButton?.addEventListener("click", () => {
+      const open = !document.body.classList.contains("sidebar-open");
+
+      document.body.classList.toggle("sidebar-open", open);
+      menuButton.setAttribute("aria-expanded", String(open));
+
+      if (backdrop) backdrop.hidden = !open;
+    });
+
+    backdrop?.addEventListener("click", closeSidebar);
+
+    const moreButton = $("#moreButton");
+    const moreMenu = $("#moreMenu");
+
+    moreButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      if (!moreMenu) return;
+
+      moreMenu.hidden = !moreMenu.hidden;
+      moreButton.setAttribute("aria-expanded", String(!moreMenu.hidden));
+    });
+
+    document.addEventListener("click", (event) => {
       if (
-        state.authMode === "signup" &&
-        !$("#acceptTerms")?.checked
+        moreMenu &&
+        !moreMenu.hidden &&
+        !event.target.closest("#moreMenu") &&
+        !event.target.closest("#moreButton")
       ) {
-        setMessage(
-          $("#authMessage"),
-          "Please accept the Terms and Privacy Policy.",
+        moreMenu.hidden = true;
+        moreButton?.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeSidebar();
+
+        if (moreMenu) moreMenu.hidden = true;
+        moreButton?.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  // ---------------------------------------------------------
+  // Authentication interface
+  // ---------------------------------------------------------
+
+  function setAuthMode(mode) {
+    state.authMode = mode === "signup" ? "signup" : "login";
+
+    const signup = state.authMode === "signup";
+    const title = $("#authTitle");
+    const description = $("#authDescription");
+    const submit = $("#authSubmit");
+    const nameInput = $("#authName");
+    const nameLabel = $("#authNameLabel");
+    const confirmInput = $("#authConfirmPassword");
+    const confirmLabel = $("#confirmPasswordLabel");
+    const forgotButton = $("#forgotPasswordButton");
+    const passwordInput = $("#authPassword");
+
+    $$(".auth-tab").forEach((tab) => {
+      const active = tab.dataset.authMode === state.authMode;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-pressed", String(active));
+    });
+
+    if (title) {
+      title.textContent = signup ? "Create your account" : "Welcome back";
+    }
+
+    if (description) {
+      description.textContent = signup
+        ? "Start expressing your story."
+        : "Continue your story.";
+    }
+
+    if (submit) submit.textContent = signup ? "Create account" : "Log in";
+
+    if (nameInput) {
+      nameInput.hidden = !signup;
+      nameInput.required = signup;
+    }
+
+    if (nameLabel) nameLabel.hidden = !signup;
+
+    if (confirmInput) {
+      confirmInput.hidden = !signup;
+      confirmInput.required = signup;
+    }
+
+    if (confirmLabel) confirmLabel.hidden = !signup;
+    if (forgotButton) forgotButton.hidden = signup;
+
+    if (passwordInput) {
+      passwordInput.autocomplete = signup
+        ? "new-password"
+        : "current-password";
+    }
+
+    setFormMessage("authMessage", "");
+  }
+
+  function setupAuthentication() {
+    $$("[data-auth-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setAuthMode(button.dataset.authMode);
+      });
+    });
+
+    $("#authForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const form = event.currentTarget;
+      if (!form.reportValidity()) return;
+
+      const name = $("#authName")?.value.trim() || "";
+      const email = $("#authEmail")?.value.trim() || "";
+      const password = $("#authPassword")?.value || "";
+      const confirmation = $("#authConfirmPassword")?.value || "";
+
+      if (state.authMode === "signup" && !name) {
+        setFormMessage("authMessage", "Please enter your name.", "error");
+        return;
+      }
+
+      if (password.length < 8) {
+        setFormMessage(
+          "authMessage",
+          "Use a password with at least 8 characters.",
           "error"
         );
         return;
       }
 
-      setMessage(
-        $("#authMessage"),
-        "Firebase Authentication is not connected. No account was created or login attempted.",
-        "error"
+      if (state.authMode === "signup" && password !== confirmation) {
+        setFormMessage(
+          "authMessage",
+          "The passwords do not match.",
+          "error"
+        );
+        return;
+      }
+
+      if (!email) {
+        setFormMessage(
+          "authMessage",
+          "Please enter your email address.",
+          "error"
+        );
+        return;
+      }
+
+      requireFirebase(
+        "The form is validated, but account creation and login require Firebase Authentication."
       );
     });
-  }
 
-  const resetButton = $("#resetPasswordButton");
-
-  if (resetButton) {
-    resetButton.addEventListener("click", () => {
+    $("#forgotPasswordButton")?.addEventListener("click", () => {
       const email = $("#authEmail")?.value.trim();
 
       if (!email) {
-        setMessage(
-          $("#authMessage"),
-          "Enter your email address first. Password reset is not connected yet.",
+        setFormMessage(
+          "authMessage",
+          "Enter your email address first.",
           "error"
         );
         $("#authEmail")?.focus();
         return;
       }
 
-      if (!$("#authEmail")?.checkValidity()) {
-        setMessage(
-          $("#authMessage"),
-          "Please enter a valid email address.",
-          "error"
-        );
-        return;
-      }
-
-      setMessage(
-        $("#authMessage"),
-        "Password reset is not connected yet. No reset email was sent.",
-        "error"
+      requireFirebase(
+        "Password reset requires Firebase Authentication integration."
       );
     });
+
+    $("#logoutButton")?.addEventListener("click", logout);
+    $("#menuLogoutButton")?.addEventListener("click", logout);
   }
 
-  setAuthMode("login");
-}
-
-/* ---------------------------------------------------------
-   FEELINGS
---------------------------------------------------------- */
-
-function updateSelectedFeeling(feeling) {
-  if (!FEELINGS.includes(feeling)) return;
-
-  state.currentFeeling = feeling;
-
-  $$(".feeling-chip").forEach(button => {
-    const selected = button.dataset.feeling === feeling;
-
-    button.classList.toggle("selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
-
-  const currentFeeling = $("#currentFeeling");
-  const label = $("#currentFeelingLabel");
-
-  if (currentFeeling) currentFeeling.value = feeling;
-
-  if (label) {
-    label.textContent =
-      "Selected feeling: " + feeling +
-      ". Save it from My Feelings when the backend is connected.";
-  }
-}
-
-function initFeelings() {
-  $$(".feeling-chip").forEach(button => {
-    button.addEventListener("click", () => {
-      const feeling = button.dataset.feeling;
-
-      if (!FEELINGS.includes(feeling)) return;
-
-      updateSelectedFeeling(feeling);
-      showPage("feelings");
-    });
-  });
-
-  const feelingForm = $("#feelingForm");
-
-  if (feelingForm) {
-    feelingForm.addEventListener("submit", event => {
-      event.preventDefault();
-
-      const feeling = $("#currentFeeling")?.value;
-      const visibility = $("#feelingVisibility")?.value;
-
-      if (!FEELINGS.includes(feeling)) {
-        setMessage(
-          $("#feelingMessage"),
-          "Please choose a valid feeling.",
-          "error"
-        );
-        return;
-      }
-
-      if (!["everyone", "friends", "private"].includes(visibility)) {
-        setMessage(
-          $("#feelingMessage"),
-          "Please choose a valid privacy setting.",
-          "error"
-        );
-        return;
-      }
-
-      updateSelectedFeeling(feeling);
-
-      setMessage(
-        $("#feelingMessage"),
-        "Your selection is ready, but it has not been saved. Connect Firebase and implement the Firestore privacy rules before saving feelings.",
-        "error"
-      );
-    });
-  }
-}
-
-/* ---------------------------------------------------------
-   LETTER TEMPLATES AND PREVIEW
---------------------------------------------------------- */
-
-function applyLetterTemplate(templateName) {
-  const template = LETTER_TEMPLATES[templateName];
-
-  if (!template) return;
-
-  state.selectedTemplate = templateName;
-
-  const selector = $("#letterTemplate");
-  const title = $("#letterTitle");
-  const body = $("#letterBody");
-  const heading = $("#letterEditorHeading");
-
-  if (selector) selector.value = templateName;
-
-  if (title && !title.value.trim()) {
-    title.value = template.title;
-  }
-
-  if (body && !body.value.trim()) {
-    body.value = template.greeting + "\n\n" + template.body;
-  }
-
-  if (heading) heading.textContent = templateName;
-
-  $$("[data-template]").forEach(button => {
-    const selected = button.dataset.template === templateName;
-
-    button.classList.toggle("selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
-}
-
-function initLetterTemplates() {
-  $$("[data-template]").forEach(button => {
-    button.addEventListener("click", () => {
-      const templateName = button.dataset.template;
-
-      if (!LETTER_TEMPLATES[templateName]) return;
-
-      state.selectedTemplate = templateName;
-
-      const selector = $("#letterTemplate");
-      const title = $("#letterTitle");
-      const body = $("#letterBody");
-
-      if (selector) selector.value = templateName;
-
-      const template = LETTER_TEMPLATES[templateName];
-
-      if (title) title.value = template.title;
-
-      if (body) {
-        body.value = template.greeting + "\n\n" + template.body;
-      }
-
-      const heading = $("#letterEditorHeading");
-
-      if (heading) heading.textContent = templateName;
-
-      $$("[data-template]").forEach(card => {
-        const selected = card.dataset.template === templateName;
-
-        card.classList.toggle("selected", selected);
-        card.setAttribute("aria-pressed", String(selected));
-      });
-
-      $("#letterForm")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    });
-  });
-
-  const selector = $("#letterTemplate");
-
-  if (selector) {
-    selector.addEventListener("change", () => {
-      const templateName = selector.value;
-
-      if (!LETTER_TEMPLATES[templateName]) return;
-
-      state.selectedTemplate = templateName;
-
-      $$("[data-template]").forEach(button => {
-        const selected = button.dataset.template === templateName;
-
-        button.classList.toggle("selected", selected);
-        button.setAttribute("aria-pressed", String(selected));
-      });
-    });
-  }
-
-  const previewButton = $("#previewLetterButton");
-  const dialog = $("#letterPreviewDialog");
-
-  state.letterPreviewDialog = dialog || null;
-
-  if (previewButton) {
-    previewButton.addEventListener("click", () => {
-      const title = $("#letterTitle")?.value.trim();
-      const body = $("#letterBody")?.value.trim();
-      const template = $("#letterTemplate")?.value;
-
-      if (!body) {
-        setMessage(
-          $("#letterMessage"),
-          "Write your letter before previewing it.",
-          "error"
-        );
-        $("#letterBody")?.focus();
-        return;
-      }
-
-      $("#previewLetterTitle").textContent =
-        title || "A letter just for you";
-
-      $("#previewLetterBody").textContent = body;
-
-      $("#previewTemplateName").textContent =
-        template || "A LETTER FROM THE HEART";
-
-      if (dialog && typeof dialog.showModal === "function") {
-        if (!dialog.open) dialog.showModal();
-      } else {
-        showGlobalMessage(
-          "Your browser does not support the letter preview dialog."
-        );
-      }
-    });
-  }
-
-  const closePreview = $("#closeLetterPreview");
-
-  if (closePreview) {
-    closePreview.addEventListener("click", () => {
-      if (dialog?.open) dialog.close();
-    });
-  }
-
-  if (dialog) {
-    dialog.addEventListener("click", event => {
-      if (event.target === dialog) dialog.close();
-    });
-  }
-
-  const letterForm = $("#letterForm");
-
-  if (letterForm) {
-    letterForm.addEventListener("submit", event => {
-      event.preventDefault();
-
-      if (!letterForm.reportValidity()) return;
-
-      const body = $("#letterBody")?.value.trim();
-      const visibility = $("#letterVisibility")?.value;
-
-      if (!body) {
-        setMessage(
-          $("#letterMessage"),
-          "Please write your letter.",
-          "error"
-        );
-        return;
-      }
-
-      if (!["everyone", "friends", "private"].includes(visibility)) {
-        setMessage(
-          $("#letterMessage"),
-          "Please select a valid visibility setting.",
-          "error"
-        );
-        return;
-      }
-
-      setMessage(
-        $("#letterMessage"),
-        "Your letter is still on this page. It has not been saved or published. Connect Firebase and implement authorization before storing letters.",
-        "error"
-      );
-    });
-  }
-
-  applyLetterTemplate("Romantic Love");
-}
-
-/* ---------------------------------------------------------
-   FILE SELECTION AND BASIC CLIENT-SIDE VALIDATION
---------------------------------------------------------- */
-
-function validateSelectedFile(file, allowedKinds, maxBytes) {
-  if (!file) {
-    return { valid: true, message: "" };
-  }
-
-  if (file.size <= 0) {
-    return { valid: false, message: "The selected file is empty." };
-  }
-
-  if (file.size > maxBytes) {
-    return {
-      valid: false,
-      message: "This file is too large. Choose a smaller file."
-    };
-  }
-
-  const allowed = allowedKinds.some(kind => {
-    if (kind.endsWith("/*")) {
-      return file.type.startsWith(kind.slice(0, -1));
-    }
-
-    return file.type === kind;
-  });
-
-  if (!allowed) {
-    return {
-      valid: false,
-      message: "This file type is not supported."
-    };
-  }
-
-  return { valid: true, message: "" };
-}
-
-function initMediaInputs() {
-  const mediaButton = $("#attachMediaButton");
-  const audioButton = $("#attachAudioButton");
-  const postMedia = $("#postMedia");
-  const postAudio = $("#postAudio");
-
-  if (mediaButton && postMedia) {
-    mediaButton.addEventListener("click", () => postMedia.click());
-  }
-
-  if (audioButton && postAudio) {
-    audioButton.addEventListener("click", () => postAudio.click());
-  }
-
-  if (postMedia) {
-    postMedia.addEventListener("change", () => {
-      const file = postMedia.files?.[0] || null;
-
-      const result = validateSelectedFile(
-        file,
-        ["image/*", "video/*"],
-        25 * 1024 * 1024
-      );
-
-      if (!result.valid) {
-        postMedia.value = "";
-        state.selectedPostFile = null;
-
-        setMessage($("#postFormMessage"), result.message, "error");
-        return;
-      }
-
-      state.selectedPostFile = file;
-
-      setMessage(
-        $("#postFormMessage"),
-        file ? "Selected: " + file.name + ". It has not been uploaded." : ""
-      );
-    });
-  }
-
-  if (postAudio) {
-    postAudio.addEventListener("change", () => {
-      const file = postAudio.files?.[0] || null;
-
-      const result = validateSelectedFile(
-        file,
-        ["audio/*"],
-        10 * 1024 * 1024
-      );
-
-      if (!result.valid) {
-        postAudio.value = "";
-        state.selectedAudioFile = null;
-
-        setMessage($("#postFormMessage"), result.message, "error");
-        return;
-      }
-
-      state.selectedAudioFile = file;
-
-      setMessage(
-        $("#postFormMessage"),
-        file ? "Selected: " + file.name + ". Audio duration and upload permissions must be checked before publishing." : ""
-      );
-    });
-  }
-
-  const storyMedia = $("#storyMedia");
-
-  if (storyMedia) {
-    storyMedia.addEventListener("change", () => {
-      const file = storyMedia.files?.[0] || null;
-
-      const result = validateSelectedFile(
-        file,
-        ["image/*", "video/*"],
-        25 * 1024 * 1024
-      );
-
-      if (!result.valid) {
-        storyMedia.value = "";
-        state.selectedStoryFile = null;
-
-        setMessage($("#storyMessage"), result.message, "error");
-        return;
-      }
-
-      state.selectedStoryFile = file;
-
-      setMessage(
-        $("#storyMessage"),
-        file ? "Selected: " + file.name + ". The story has not been uploaded." : ""
-      );
-    });
-  }
-
-  const storyAudio = $("#storyAudio");
-
-  if (storyAudio) {
-    storyAudio.addEventListener("change", () => {
-      const file = storyAudio.files?.[0] || null;
-
-      const result = validateSelectedFile(
-        file,
-        ["audio/*"],
-        10 * 1024 * 1024
-      );
-
-      if (!result.valid) {
-        storyAudio.value = "";
-
-        setMessage($("#storyMessage"), result.message, "error");
-        return;
-      }
-
-      setMessage(
-        $("#storyMessage"),
-        file ? "Audio selected. The 30-second limit must also be enforced during upload." : ""
-      );
-    });
-  }
-
-  const profilePhoto = $("#profilePhoto");
-
-  if (profilePhoto) {
-    profilePhoto.addEventListener("change", () => {
-      const file = profilePhoto.files?.[0] || null;
-
-      const result = validateSelectedFile(
-        file,
-        ["image/*"],
-        5 * 1024 * 1024
-      );
-
-      if (!result.valid) {
-        profilePhoto.value = "";
-        state.selectedProfileFile = null;
-
-        setMessage($("#profileMessage"), result.message, "error");
-        return;
-      }
-
-      state.selectedProfileFile = file;
-
-      setMessage(
-        $("#profileMessage"),
-        file ? "Selected: " + file.name + ". The image has not been uploaded." : ""
-      );
-    });
-  }
-}
-
-/* ---------------------------------------------------------
-   POST FORM
---------------------------------------------------------- */
-
-function initPostForm() {
-  const form = $("#postForm");
-
-  if (!form) return;
-
-  form.addEventListener("submit", event => {
-    event.preventDefault();
-
-    const text = $("#postText")?.value.trim() || "";
-    const visibility = $("#postVisibility")?.value;
-    const feeling = $("#postFeeling")?.value || "";
-
-    if (!text && !state.selectedPostFile && !state.selectedAudioFile) {
-      setMessage(
-        $("#postFormMessage"),
-        "Write something or select media before continuing.",
-        "error"
-      );
-      return;
-    }
-
-    if (!["everyone", "friends", "private"].includes(visibility)) {
-      setMessage(
-        $("#postFormMessage"),
-        "Please choose a valid audience.",
-        "error"
-      );
-      return;
-    }
-
-    if (feeling && !FEELINGS.includes(feeling)) {
-      setMessage(
-        $("#postFormMessage"),
-        "Please choose a valid feeling.",
-        "error"
-      );
-      return;
-    }
-
-    setMessage(
-      $("#postFormMessage"),
-      "Your post has not been published. Firebase, Firestore permissions and Cloudinary uploads must be connected first.",
-      "error"
+  function logout() {
+    requireFirebase(
+      "Secure logout will be enabled when Firebase Authentication is connected."
     );
-  });
+  }
 
-  const refreshButton = $("#refreshFeedButton");
+  // ---------------------------------------------------------
+  // Profile preview
+  // ---------------------------------------------------------
 
-  if (refreshButton) {
-    refreshButton.addEventListener("click", () => {
-      showGlobalMessage(
-        "The feed cannot refresh until the Firestore integration is connected."
-      );
+  function updateProfilePreview() {
+    const name = $("#profileName")?.value.trim() || "Your name";
+    const bio = $("#profileBio")?.value.trim() ||
+      "Your story begins with you.";
+    const visibility = $("#profileVisibility")?.value || "private";
+
+    const displayName = $("#profileDisplayName");
+    const bioPreview = $("#profileBioPreview");
+    const visibilityPreview = $("#profileVisibilityPreview");
+
+    if (displayName) displayName.textContent = name;
+    if (bioPreview) bioPreview.textContent = bio;
+
+    if (visibilityPreview) {
+      const labels = {
+        private: "Private profile",
+        friends: "Friends-only profile",
+        public: "Public profile"
+      };
+
+      visibilityPreview.textContent = labels[visibility] || labels.private;
+    }
+
+    const avatar = initials(name);
+
+    ["profileAvatar", "topAvatar", "composerAvatar"].forEach((id) => {
+      const element = document.getElementById(id);
+      if (element && !element.querySelector("img")) {
+        element.textContent = avatar;
+      }
     });
   }
-}
 
-/* ---------------------------------------------------------
-   STORY FORM
---------------------------------------------------------- */
+  function setupProfile() {
+    $("#profileName")?.addEventListener("input", updateProfilePreview);
+    $("#profileBio")?.addEventListener("input", updateProfilePreview);
+    $("#profileVisibility")?.addEventListener("change", updateProfilePreview);
 
-function initStoryForm() {
-  const form = $("#storyForm");
+    $("#profilePhoto")?.addEventListener("change", () => {
+      const input = $("#profilePhoto");
+      const file = input?.files?.[0];
 
-  if (!form) return;
+      if (!file) return;
 
-  form.addEventListener("submit", event => {
-    event.preventDefault();
+      if (!file.type.startsWith("image/")) {
+        showToast("Please choose an image file.");
+        input.value = "";
+        return;
+      }
 
-    const text = $("#storyText")?.value.trim() || "";
-    const visibility = $("#storyVisibility")?.value;
-    const audioFile = $("#storyAudio")?.files?.[0] || null;
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("Choose an image smaller than 5 MB.");
+        input.value = "";
+        return;
+      }
 
-    if (
-      !text &&
-      !state.selectedStoryFile &&
-      !audioFile
-    ) {
-      setMessage(
-        $("#storyMessage"),
-        "Add story text, a photo, a video or audio before continuing.",
+      showToast(
+        "Image selected. Secure storage upload will be enabled in the backend integration."
+      );
+    });
+
+    $("#profileForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!event.currentTarget.reportValidity()) return;
+
+      updateProfilePreview();
+
+      requireFirebase(
+        "Your profile preview is updated. Permanent profile saving requires Firestore integration."
+      );
+    });
+
+    $("#deleteAccountButton")?.addEventListener("click", () => {
+      const confirmed = window.confirm(
+        "Account deletion is a permanent action. Continue to the deletion request?"
+      );
+
+      if (!confirmed) return;
+
+      setFormMessage(
+        "accountMessage",
+        "No account has been deleted. A secure deletion workflow must be connected first.",
         "error"
       );
-      return;
-    }
+    });
 
-    if (!["everyone", "friends"].includes(visibility)) {
-      setMessage(
-        $("#storyMessage"),
-        "Please choose a valid story audience.",
-        "error"
-      );
-      return;
-    }
+    updateProfilePreview();
+  }
 
-    setMessage(
-      $("#storyMessage"),
-      "Your story has not been published. Server-side 24-hour expiry, audience authorization and media upload must be implemented first.",
-      "error"
-    );
-  });
+  // ---------------------------------------------------------
+  // Feelings
+  // ---------------------------------------------------------
 
-  const createStoryButton = $("#createStoryButton");
+  function setupFeelings() {
+    const choices = $$("#feelingChoices [data-feeling]");
+    const hiddenInput = $("#selectedFeeling");
 
-  if (createStoryButton) {
-    createStoryButton.addEventListener("click", () => {
-      showPage("stories");
+    choices.forEach((button) => {
+      button.setAttribute("aria-pressed", "false");
 
-      $("#storyForm")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
+      button.addEventListener("click", () => {
+        state.selectedFeeling = button.dataset.feeling || "";
+
+        if (hiddenInput) hiddenInput.value = state.selectedFeeling;
+
+        choices.forEach((choice) => {
+          const selected =
+            choice.dataset.feeling === state.selectedFeeling;
+
+          choice.classList.toggle("selected", selected);
+          choice.setAttribute("aria-pressed", String(selected));
+        });
       });
-
-      $("#storyText")?.focus({ preventScroll: true });
     });
-  }
-}
 
-/* ---------------------------------------------------------
-   FRIEND REQUESTS AND MESSAGE REQUESTS
---------------------------------------------------------- */
-
-function initRequests() {
-  const friendForm = $("#friendRequestForm");
-
-  if (friendForm) {
-    friendForm.addEventListener("submit", event => {
+    $("#feelingForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
 
-      if (!friendForm.reportValidity()) return;
-
-      const username = $("#friendUsername")?.value.trim() || "";
-
-      if (!/^[A-Za-z0-9_]{2,30}$/.test(username.replace(/^@/, ""))) {
-        setMessage(
-          $("#friendRequestStatus"),
-          "Enter a valid username containing 2–30 letters, numbers or underscores.",
+      if (!state.selectedFeeling) {
+        setFormMessage(
+          "feelingMessage",
+          "Please choose a feeling first.",
           "error"
         );
         return;
       }
 
-      setMessage(
-        $("#friendRequestStatus"),
-        "No friend request was sent. Authentication and Firestore authorization are not connected.",
-        "error"
+      requireFirebase(
+        "Your feeling is selected. Saving and audience permissions require Firestore integration."
       );
     });
   }
 
-  const messageForm = $("#messageRequestForm");
+  // ---------------------------------------------------------
+  // Stories
+  // ---------------------------------------------------------
 
-  if (messageForm) {
-    messageForm.addEventListener("submit", event => {
+  function setupStories() {
+    $("#storyForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
 
-      if (!messageForm.reportValidity()) return;
-
-      const username = $("#messageRecipient")?.value.trim() || "";
-      const message = $("#messageRequestText")?.value.trim() || "";
-
-      if (!/^[A-Za-z0-9_]{2,30}$/.test(username.replace(/^@/, ""))) {
-        setMessage(
-          $("#messageRequestStatus"),
-          "Enter a valid recipient username.",
-          "error"
-        );
-        return;
-      }
-
-      if (!message || message.length > 500) {
-        setMessage(
-          $("#messageRequestStatus"),
-          "Your request must contain 1–500 characters.",
-          "error"
-        );
-        return;
-      }
-
-      setMessage(
-        $("#messageRequestStatus"),
-        "No message request was sent. The authenticated backend and recipient permissions are not connected.",
-        "error"
-      );
-    });
-  }
-}
-
-/* ---------------------------------------------------------
-   PROFILE
---------------------------------------------------------- */
-
-function initProfile() {
-  const form = $("#profileForm");
-
-  if (form) {
-    form.addEventListener("submit", event => {
-      event.preventDefault();
-
+      const form = event.currentTarget;
       if (!form.reportValidity()) return;
 
-      const username = $("#profileUsername")?.value.trim() || "";
-      const visibility = $("#profileVisibility")?.value;
+      const file = $("#storyMedia")?.files?.[0];
 
-      if (username && !/^[A-Za-z0-9_]{3,30}$/.test(username)) {
-        setMessage(
-          $("#profileMessage"),
-          "Username must contain 3–30 letters, numbers or underscores.",
+      if (file && file.size > 50 * 1024 * 1024) {
+        setFormMessage(
+          "storyMessage",
+          "The selected file exceeds the current 50 MB interface limit.",
           "error"
         );
         return;
       }
 
-      if (!["public", "friends", "private"].includes(visibility)) {
-        setMessage(
-          $("#profileMessage"),
-          "Please choose a valid profile visibility.",
+      if (
+        file &&
+        !["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm"]
+          .includes(file.type)
+      ) {
+        setFormMessage(
+          "storyMessage",
+          "Choose a supported image or video format.",
           "error"
         );
         return;
       }
 
-      setMessage(
-        $("#profileMessage"),
-        "Your profile has not been saved. Firebase Authentication and Firestore profile permissions must be connected.",
-        "error"
+      requireFirebase(
+        "Publishing stories requires secure media upload, database permissions and automatic 24-hour expiration."
       );
     });
   }
 
-  const profileButton = $("#profileButton");
+  // ---------------------------------------------------------
+  // Love letter templates
+  // ---------------------------------------------------------
 
-  if (profileButton) {
-    profileButton.addEventListener("click", () => {
-      showPage("profile");
+  function selectTemplate(template) {
+    if (!Object.prototype.hasOwnProperty.call(templateText, template)) {
+      template = "custom";
+    }
+
+    state.selectedTemplate = template;
+
+    const select = $("#letterTemplate");
+    const body = $("#letterBody");
+
+    if (select) select.value = template;
+
+    $$(".template-card").forEach((button) => {
+      const active = button.dataset.template === template;
+
+      button.classList.toggle("selected", active);
+      button.setAttribute("aria-pressed", String(active));
     });
+
+    if (body && templateText[template]) {
+      body.value = templateText[template];
+    }
+
+    $("#letterTitle")?.focus({ preventScroll: true });
   }
 
-  const logoutButton = $("#logoutButton");
+  function setupLetters() {
+    $$(".template-card[data-template]").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectTemplate(button.dataset.template);
+      });
+    });
 
-  if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-      showGlobalMessage(
-        "No account is connected, so there is nothing to log out from."
+    $("#letterTemplate")?.addEventListener("change", (event) => {
+      state.selectedTemplate = event.target.value;
+
+      const suggested = templateText[state.selectedTemplate];
+
+      if (suggested && $("#letterBody")?.value.trim() === "") {
+        $("#letterBody").value = suggested;
+      }
+
+      $$(".template-card").forEach((button) => {
+        const active =
+          button.dataset.template === state.selectedTemplate;
+
+        button.classList.toggle("selected", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    });
+
+    $("#letterForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!event.currentTarget.reportValidity()) return;
+
+      const visibility = $("#letterVisibility")?.value;
+
+      if (visibility === "recipient" && !$("#letterRecipient")?.value.trim()) {
+        setFormMessage(
+          "letterMessage",
+          "Enter the recipient's email or save the letter as a private draft.",
+          "error"
+        );
+        return;
+      }
+
+      requireFirebase(
+        "Saving private letters and sending collaborative letters require authenticated backend permissions."
       );
     });
   }
 
-  const deleteButton = $("#deleteAccountButton");
+  // ---------------------------------------------------------
+  // Posts and feed
+  // ---------------------------------------------------------
 
-  if (deleteButton) {
-    deleteButton.addEventListener("click", () => {
-      showGlobalMessage(
-        "Account deletion is not connected. No account or data was deleted."
+  function setupPosts() {
+    $("#postForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const text = $("#postText")?.value.trim() || "";
+
+      if (!text) {
+        setFormMessage(
+          "postMessage",
+          "Write something before publishing.",
+          "error"
+        );
+        return;
+      }
+
+      requireFirebase(
+        "Publishing posts requires an authenticated account and Firestore security rules."
       );
     });
   }
-}
 
-/* ---------------------------------------------------------
-   NOTIFICATIONS
---------------------------------------------------------- */
+  // ---------------------------------------------------------
+  // Friends and search
+  // ---------------------------------------------------------
 
-function initNotifications() {
-  const button = $("#notificationsButton");
+  function setupFriends() {
+    $("#userSearchForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
 
-  if (button) {
-    button.addEventListener("click", () => {
-      showPage("notifications");
+      const query = $("#userSearch")?.value.trim() || "";
+
+      if (!query) return;
+
+      requireFirebase(
+        "Searching profiles requires a backend query that respects each user's visibility settings."
+      );
+    });
+
+    $("#searchResults")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-friend-action]");
+      if (!button) return;
+
+      const action = button.dataset.friendAction;
+
+      if (action === "request") {
+        requireFirebase("Friend requests require authenticated backend integration.");
+      } else if (action === "accept") {
+        requireFirebase("Accepting friend requests requires server-side authorization.");
+      } else if (action === "reject") {
+        requireFirebase("Rejecting friend requests requires backend integration.");
+      } else if (action === "block") {
+        const confirmed = window.confirm("Block this user?");
+
+        if (confirmed) {
+          requireFirebase("Blocking must be enforced by the backend.");
+        }
+      } else if (action === "report") {
+        requireFirebase("Reporting requires a secure moderation workflow.");
+      }
+    });
+
+    $("#friendRequests")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-friend-action]");
+      if (!button) return;
+
+      if (button.dataset.friendAction === "accept") {
+        requireFirebase("Accepting requests requires backend authorization.");
+      } else if (button.dataset.friendAction === "reject") {
+        requireFirebase("Rejecting requests requires backend integration.");
+      }
+    });
+
+    $("#friendsList")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-friend-action]");
+      if (!button) return;
+
+      if (button.dataset.friendAction === "message") {
+        requireFirebase("Messaging is available only after an accepted connection.");
+      } else if (button.dataset.friendAction === "block") {
+        const confirmed = window.confirm("Block this user?");
+
+        if (confirmed) {
+          requireFirebase("Blocking must be enforced by the backend.");
+        }
+      } else if (button.dataset.friendAction === "report") {
+        requireFirebase("Reporting requires a secure moderation workflow.");
+      }
     });
   }
-}
 
-/* ---------------------------------------------------------
-   DOCUMENT INITIALIZATION
---------------------------------------------------------- */
+  // ---------------------------------------------------------
+  // Messages
+  // ---------------------------------------------------------
 
-function init() {
-  const year = $("#currentYear");
+  function setupMessages() {
+    $("#messageForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
 
-  if (year) {
-    year.textContent = String(new Date().getFullYear());
+      const input = $("#messageText");
+      const text = input?.value.trim() || "";
+
+      if (!text) return;
+
+      if (!state.currentConversation) {
+        setFormMessage(
+          "messageStatus",
+          "Select an accepted conversation first.",
+          "error"
+        );
+        return;
+      }
+
+      requireFirebase(
+        "Sending messages requires an accepted connection and server-enforced conversation permissions."
+      );
+    });
   }
 
-  initNavigation();
-  initBackendStatus();
-  initAuthenticationUI();
-  initFeelings();
-  initLetterTemplates();
-  initMediaInputs();
-  initPostForm();
-  initStoryForm();
-  initRequests();
-  initProfile();
-  initNotifications();
+  // ---------------------------------------------------------
+  // Notifications
+  // ---------------------------------------------------------
 
-  console.info(
-    "Express Your Story frontend initialized. Backend operations are not connected."
-  );
-}
+  function setupNotifications() {
+    $("#markNotificationsRead")?.addEventListener("click", () => {
+      requireFirebase(
+        "Marking notifications as read requires the user's authenticated notification records."
+      );
+    });
+  }
+
+  // ---------------------------------------------------------
+  // Security and accessibility
+  // ---------------------------------------------------------
+
+  function setupGlobalSafety() {
+    document.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-action]");
+      if (!actionButton) return;
+
+      const action = actionButton.dataset.action;
+
+      if (action === "report") {
+        requireFirebase("Reports must be submitted to the secure moderation backend.");
+      } else if (action === "block") {
+        const confirmed = window.confirm("Do you want to block this user?");
+
+        if (confirmed) {
+          requireFirebase("Blocking requires server-side enforcement.");
+        }
+      } else if (action === "delete") {
+        const confirmed = window.confirm("Are you sure you want to delete this item?");
+
+        if (confirmed) {
+          requireFirebase("Deletion requires authentication and ownership checks.");
+        }
+      } else if (action === "message") {
+        requireFirebase("Private messages require an accepted connection.");
+      }
+    });
+
+    document.addEventListener("error", (event) => {
+      if (event.target instanceof HTMLImageElement) {
+        event.target.hidden = true;
+      }
+    }, true);
+  }
+
+  // ---------------------------------------------------------
+  // Startup
+  // ---------------------------------------------------------
+
+  function init() {
+    setupNavigation();
+    setupAuthentication();
+    setupProfile();
+    setupFeelings();
+    setupStories();
+    setupLetters();
+    setupPosts();
+    setupFriends();
+    setupMessages();
+    setupNotifications();
+    setupGlobalSafety();
+
+    setAuthMode("login");
+    navigate("home");
+
+    console.info(
+      "Express Your Story interface initialized. Firebase is not connected yet."
+    );
+  }
+
+  return {
+    init,
+    navigate,
+    setAuthMode,
+    selectTemplate,
+    updateProfilePreview,
+    showToast
+  };
+})();
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
+  document.addEventListener("DOMContentLoaded", App.init, { once: true });
 } else {
-  init();
+  App.init();
 }
