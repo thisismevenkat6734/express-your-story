@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#100d20">
+  <meta name="description" content="Express Your Story — Every Feeling Deserves a Voice. Share feelings, stories, quotes and heartfelt letters in a community built around expression.">
+  <title>Express Your Story — Every Feeling Deserves a Voice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="app-shell">
+
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="Express Your Story home">
+        <span class="brand-symbol" aria-hidden="true">✦</span>
+        <span class="brand-name">Express Your Story</span>
+      </a>
+
+      <button class="icon-button" id="menuToggle"
+        type="button" aria-label="Open navigation" aria-expanded="false">
+        <span aria-hidden="true">☰</span>
+      </button>
+
+      <div class="header-actions">
+        <button class="icon-button" id="notificationsButton"
+          type="button" aria-label="Notifications">♧</button>
+        <button class="profile-trigger" id="profileButton"
+          type="button" aria-label="Open profile">👤</button>
+      </div>
+    </header>
+
+    <div class="layout">
+
+      <aside class="sidebar" id="sidebar">
+        <nav aria-label="Main navigation">
+          <a class="nav-link active" href="#home" data-page="home">
+            <span>⌂</span> Home
+          </a>
+          <a class="nav-link" href="#feelings" data-page="feelings">
+            <span>♡</span> My Feelings
+          </a>
+          <a class="nav-link" href="#stories" data-page="stories">
+            <span>◉</span> Stories
+          </a>
+          <a class="nav-link" href="#letters" data-page="letters">
+            <span>✉</span> Love Letters
+          </a>
+          <a class="nav-link" href="#messages" data-page="messages">
+            <span>☏</span> Messages
+          </a>
+          <a class="nav-link" href="#friends" data-page="friends">
+            <span>♧</span> Friends
+          </a>
+          <a class="nav-link" href="#profile" data-page="profile">
+            <span>◎</span> My Profile
+          </a>
+        </nav>
+
+        <div class="sidebar-note">
+          <span aria-hidden="true">♡</span>
+          <p>Every feeling matters. Every story deserves to be heard.</p>
+        </div>
+
+        <footer class="sidebar-footer">
+          <a href="#terms" data-page="terms">Terms</a>
+          <a href="#privacy" data-page="privacy">Privacy</a>
+          <p>© <span id="currentYear">2026</span> Express Your Story</p>
+        </footer>
+      </aside>
+
+      <main id="mainContent">
+
+        <!-- HOME FEED -->
+        <section class="page active" id="home" data-section="home">
+          <div class="welcome-banner">
+            <div class="welcome-copy">
+              <p class="eyebrow">YOUR SPACE. YOUR STORY.</p>
+              <h1>Feel it. <span>Express it.</span></h1>
+              <p>A little space for everything your heart wants to say.</p>
+              <a class="primary-button" href="#feelings" data-page="feelings">
+                Share how you feel <span aria-hidden="true">→</span>
+              </a>
+            </div>
+            <div class="welcome-art" aria-hidden="true">
+              <div class="art-orbit orbit-one"></div>
+              <div class="art-orbit orbit-two"></div>
+              <div class="art-heart">♡</div>
+              <div class="art-spark spark-one">✦</div>
+              <div class="art-spark spark-two">✧</div>
+            </div>
+          </div>
+
+          <section class="content-section" aria-labelledby="storiesHeading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">LITTLE MOMENTS</p>
+                <h2 id="storiesHeading">Stories</h2>
+              </div>
+              <a href="#stories" data-page="stories" class="text-link">View all →</a>
+            </div>
+            <div class="story-strip" id="storyStrip">
+              <button class="story-card create-story" id="createStoryButton"
+                type="button">
+                <span class="story-plus">+</span>
+                <span>Your story</span>
+              </button>
+              <div class="empty-inline">
+                Stories from your friends will appear here.
+              </div>
+            </div>
+          </section>
+
+          <section class="content-section" aria-labelledby="feelingHeading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">CHECK IN WITH YOURSELF</p>
+                <h2 id="feelingHeading">How are you feeling?</h2>
+              </div>
+              <a href="#feelings" data-page="feelings" class="text-link">Update →</a>
+            </div>
+
+            <div class="feeling-grid" id="homeFeelingGrid">
+              <button class="feeling-chip" data-feeling="Happy" type="button">😊 Happy</button>
+              <button class="feeling-chip" data-feeling="Sad" type="button">😔 Sad</button>
+              <button class="feeling-chip" data-feeling="Angry" type="button">😠 Angry</button>
+              <button class="feeling-chip" data-feeling="Confused" type="button">😕 Confused</button>
+              <button class="feeling-chip" data-feeling="Lonely" type="button">🌙 Lonely</button>
+              <button class="feeling-chip" data-feeling="In Love" type="button">💗 In Love</button>
+              <button class="feeling-chip" data-feeling="Peaceful" type="button">🕊️ Peaceful</button>
+              <button class="feeling-chip" data-feeling="Hopeful" type="button">🌱 Hopeful</button>
+            </div>
+            <p class="muted-text" id="currentFeelingLabel">Your current feeling has not been set.</p>
+          </section>
+
+          <section class="content-section" aria-labelledby="composerHeading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">LET IT OUT</p>
+                <h2 id="composerHeading">Create a post</h2>
+              </div>
+            </div>
+
+            <form id="postForm" class="composer">
+              <label class="sr-only" for="postText">Write your story</label>
+              <textarea id="postText" name="postText" maxlength="5000"
+                placeholder="What's on your heart today?" rows="4"></textarea>
+
+              <div class="composer-controls">
+                <label class="field-label" for="postVisibility">Who can see this?</label>
+                <select id="postVisibility" name="visibility">
+                  <option value="everyone">Everyone</option>
+                  <option value="friends">Friends only</option>
+                  <option value="private">Only me</option>
+                </select>
+              </div>
+
+              <div class="composer-controls">
+                <label class="field-label" for="postFeeling">Feeling (optional)</label>
+                <select id="postFeeling" name="feeling">
+                  <option value="">Choose a feeling</option>
+                  <option>Happy</option>
+                  <option>Sad</option>
+                  <option>Angry</option>
+                  <option>Confused</option>
+                  <option>Frustrated</option>
+                  <option>Lonely</option>
+                  <option>In Love</option>
+                  <option>Peaceful</option>
+                  <option>Motivated</option>
+                  <option>Hopeful</option>
+                  <option>Anxious</option>
+                  <option>Grateful</option>
+                </select>
+              </div>
+
+              <div class="composer-actions">
+                <button type="button" class="secondary-button" id="attachMediaButton">
+                  ＋ Photo / Video
+                </button>
+                <button type="button" class="secondary-button" id="attachAudioButton">
+                  ♫ Audio
+                </button>
+                <button type="submit" class="primary-button">Publish post →</button>
+              </div>
+
+              <input type="file" id="postMedia" accept="image/*,video/*" hidden>
+              <input type="file" id="postAudio" accept="audio/*" hidden>
+              <p class="form-message" id="postFormMessage" role="status"></p>
+            </form>
+          </section>
+
+          <section class="content-section" aria-labelledby="feedHeading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">WORDS FROM THE HEART</p>
+                <h2 id="feedHeading">Your feed</h2>
+              </div>
+              <button class="secondary-button" id="refreshFeedButton" type="button">
+                Refresh
+              </button>
+            </div>
+            <div class="feed-list" id="feedList" aria-live="polite">
+              <div class="empty-state">
+                <span class="empty-icon">✧</span>
+                <h3>Your feed starts here</h3>
+                <p>Sign in to discover posts and share your own story.</p>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- AUTHENTICATION -->
+        <section class="page" id="auth" data-section="auth">
+          <div class="form-panel">
+            <p class="eyebrow">WELCOME TO YOUR SPACE</p>
+            <h1 id="authHeading">Come as you are.</h1>
+            <p class="muted-text">Sign in or create an account to share your story.</p>
+
+            <div class="tab-controls" role="group" aria-label="Account options">
+              <button type="button" class="tab-button active" data-auth-mode="login">Log in</button>
+              <button type="button" class="tab-button" data-auth-mode="signup">Create account</button>
+            </div>
+
+            <form id="authForm">
+              <div id="displayNameField" hidden>
+                <label for="displayName">Your name</label>
+                <input id="displayName" name="displayName" maxlength="60"
+                  autocomplete="name" placeholder="How should we call you?">
+              </div>
+
+              <label for="authEmail">Email address</label>
+              <input id="authEmail" name="email" type="email" required
+                maxlength="254" autocomplete="email" placeholder="you@example.com">
+
+              <label for="authPassword">Password</label>
+              <input id="authPassword" name="password" type="password" required
+                minlength="8" autocomplete="current-password"
+                placeholder="At least 8 characters">
+
+              <div id="termsAcceptance" hidden>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="acceptTerms">
+                  <span>I agree to the <a href="#terms" data-page="terms">Terms</a>
+                    and <a href="#privacy" data-page="privacy">Privacy Policy</a>.</span>
+                </label>
+              </div>
+
+              <button type="submit" class="primary-button full-width" id="authSubmitButton">
+                Log in
+              </button>
+
+              <button type="button" class="text-button" id="resetPasswordButton">
+                Forgot your password?
+              </button>
+              <p id="authMessage" class="form-message" role="status"></p>
+            </form>
+          </div>
+        </section>
+
+        <!-- FEELINGS -->
+        <section class="page" id="feelings" data-section="feelings">
+          <div class="page-heading">
+            <p class="eyebrow">YOUR INNER WORLD</p>
+            <h1>Your feelings matter.</h1>
+            <p>Choose how you feel today. You decide who gets to see it.</p>
+          </div>
+
+          <form id="feelingForm" class="content-card">
+            <label for="currentFeeling">How are you feeling right now?</label>
+            <select id="currentFeeling" name="currentFeeling" required>
+              <option value="">Select a feeling</option>
+              <option>Happy</option>
+              <option>Sad</option>
+              <option>Angry</option>
+              <option>Confused</option>
+              <option>Frustrated</option>
+              <option>Lonely</option>
+              <option>In Love</option>
+              <option>Peaceful</option>
+              <option>Motivated</option>
+              <option>Hopeful</option>
+              <option>Anxious</option>
+              <option>Grateful</option>
+            </select>
+
+            <label for="feelingVisibility">Who can see your current feeling?</label>
+            <select id="feelingVisibility" name="visibility">
+              <option value="everyone">Everyone</option>
+              <option value="friends">Friends only</option>
+              <option value="private">Only me</option>
+            </select>
+
+            <button type="submit" class="primary-button">Save my feeling</button>
+            <p class="form-message" id="feelingMessage" role="status"></p>
+          </form>
+        </section>
+
+        <!-- STORIES -->
+        <section class="page" id="stories" data-section="stories">
+          <div class="page-heading">
+            <p class="eyebrow">MOMENTS THAT MATTER</p>
+            <h1>Stories</h1>
+            <p>Share a moment that expresses how you feel. Stories expire after 24 hours.</p>
+          </div>
+
+          <form id="storyForm" class="content-card">
+            <label for="storyText">Your story</label>
+            <textarea id="storyText" name="storyText" maxlength="2000"
+              rows="4" placeholder="A moment, a thought, a feeling..."></textarea>
+
+            <label for="storyMedia">Add a photo or video</label>
+            <input id="storyMedia" name="storyMedia" type="file"
+              accept="image/*,video/*">
+
+            <label for="storyAudio">Optional audio (up to 30 seconds)</label>
+            <input id="storyAudio" name="storyAudio" type="file" accept="audio/*">
+
+            <label for="storyVisibility">Audience</label>
+            <select id="storyVisibility" name="visibility">
+              <option value="everyone">Everyone</option>
+              <option value="friends">Friends only</option>
+            </select>
+
+            <button type="submit" class="primary-button">Share story</button>
+            <p class="form-message" id="storyMessage" role="status"></p>
+          </form>
+
+          <div class="story-list" id="allStories">
+            <p class="muted-text">Sign in to view stories shared with you.</p>
+          </div>
+        </section>
+
+        <!-- LOVE LETTERS -->
+        <section class="page" id="letters" data-section="letters">
+          <div class="letter-hero">
+            <p class="eyebrow">A LITTLE SOMETHING FROM THE HEART</p>
+            <h1>Hidden Letter to Your Loved One</h1>
+            <p>Some feelings are too special for ordinary words.</p>
+            <div class="letter-decoration" aria-hidden="true">✉</div>
+          </div>
+
+          <div class="content-section">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">FIND YOUR WORDS</p>
+                <h2>Choose your letter style</h2>
+              </div>
+            </div>
+
+            <div class="template-grid" id="letterTemplates">
+              <button type="button" class="template-card" data-template="Romantic Love">
+                <span>💗</span><strong>Romantic Love</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Deep Feelings">
+                <span>🌹</span><strong>Deep Feelings</strong>
+              </button>
+              <button type="button" class="template-card" data-template="First Love">
+                <span>🦋</span><strong>First Love</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Love Confession">
+                <span>💌</span><strong>Love Confession</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Missing You">
+                <span>🌙</span><strong>Missing You</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Anniversary">
+                <span>✨</span><strong>Anniversary</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Long Distance">
+                <span>🌍</span><strong>Long Distance</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Apology Letter">
+                <span>🕊️</span><strong>Apology Letter</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Poetic Love">
+                <span>📜</span><strong>Poetic Love</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Vintage Love">
+                <span>🕰️</span><strong>Vintage Love</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Cute Love">
+                <span>🧸</span><strong>Cute Love</strong>
+              </button>
+              <button type="button" class="template-card" data-template="Forever Love">
+                <span>💍</span><strong>Forever Love</strong>
+              </button>
+            </div>
+          </div>
+
+          <form id="letterForm" class="content-card">
+            <p class="eyebrow">WRITE FROM THE HEART</p>
+            <h2 id="letterEditorHeading">Create your letter</h2>
+
+            <label for="letterTitle">Letter title</label>
+            <input id="letterTitle" name="title" maxlength="120"
+              placeholder="A letter just for you">
+
+            <label for="letterRecipient">Loved one's username (optional)</label>
+            <input id="letterRecipient" name="recipient" maxlength="40"
+              placeholder="@username">
+
+            <label for="letterTemplate">Selected template</label>
+            <select id="letterTemplate" name="template">
+              <option>Romantic Love</option>
+              <option>Deep Feelings</option>
+              <option>First Love</option>
+              <option>Love Confession</option>
+              <option>Missing You</option>
+              <option>Anniversary</option>
+              <option>Long Distance</option>
+              <option>Apology Letter</option>
+              <option>Poetic Love</option>
+              <option>Vintage Love</option>
+              <option>Cute Love</option>
+              <option>Forever Love</option>
+            </select>
+
+            <label for="letterBody">Your letter</label>
+            <textarea id="letterBody" name="body" required maxlength="10000"
+              rows="10" placeholder="Dear you..."></textarea>
+
+            <label for="letterVisibility">Who can see the published letter?</label>
+            <select id="letterVisibility" name="visibility">
+              <option value="friends">Friends only</option>
+              <option value="private">Only me</option>
+              <option value="everyone">Everyone</option>
+            </select>
+
+            <div class="form-actions">
+              <button type="button" class="secondary-button" id="previewLetterButton">
+                Preview letter
+              </button>
+              <button type="submit" class="primary-button">Save letter</button>
+            </div>
+            <p class="form-message" id="letterMessage" role="status"></p>
+          </form>
+
+          <section class="content-section">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">TWO HEARTS, ONE LETTER</p>
+                <h2>Collaborative letters</h2>
+              </div>
+            </div>
+            <div class="content-card">
+              <p>Invite someone to write a letter with you. Both people must accept the collaboration and approve publication.</p>
+              <p class="muted-text">Collaboration invitations and approvals will be connected to your account after backend integration.</p>
+            </div>
+          </section>
+        </section>
+
+        <!-- TEXT-ONLY MESSAGES -->
+        <section class="page" id="messages" data-section="messages">
+          <div class="page-heading">
+            <p class="eyebrow">PRIVATE CONVERSATIONS</p>
+            <h1>Messages</h1>
+            <p>Text-only conversations with people who have accepted your message request.</p>
+          </div>
+
+          <div class="content-card">
+            <h2>Message requests</h2>
+            <div id="messageRequests">
+              <p class="muted-text">Your message requests will appear here.</p>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <h2>Your conversations</h2>
+            <div id="conversationList">
+              <p class="muted-text">Sign in to view your conversations.</p>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <h2>Send a message request</h2>
+            <form id="messageRequestForm">
+              <label for="messageRecipient">Recipient username</label>
+              <input id="messageRecipient" maxlength="40"
+                placeholder="@username" required>
+              <label for="messageRequestText">Request message</label>
+              <textarea id="messageRequestText" maxlength="500" rows="3"
+                placeholder="Introduce yourself..." required></textarea>
+              <button class="primary-button" type="submit">Send request</button>
+              <p id="messageRequestStatus" class="form-message" role="status"></p>
+            </form>
+          </div>
+
+          <div class="content-card">
+            <p>Never share passwords or sensitive personal information. You can block or report users when those controls are available.</p>
+          </div>
+        </section>
+
+        <!-- FRIENDS -->
+        <section class="page" id="friends" data-section="friends">
+          <div class="page-heading">
+            <p class="eyebrow">YOUR PEOPLE</p>
+            <h1>Friends</h1>
+            <p>Build meaningful connections at your own pace.</p>
+          </div>
+
+          <form id="friendRequestForm" class="content-card">
+            <label for="friendUsername">Find someone by username</label>
+            <input id="friendUsername" maxlength="40"
+              placeholder="@username" required>
+            <button class="primary-button" type="submit">Send friend request</button>
+            <p id="friendRequestStatus" class="form-message" role="status"></p>
+          </form>
+
+          <div class="content-card">
+            <h2>Friend requests</h2>
+            <div id="incomingFriendRequests">
+              <p class="muted-text">Incoming requests will appear here.</p>
+            </div>
+          </div>
+
+          <div class="content-card">
+            <h2>Your friends</h2>
+            <div id="friendsList">
+              <p class="muted-text">Your friends will appear here.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- PROFILE -->
+        <section class="page" id="profile" data-section="profile">
+          <div class="page-heading">
+            <p class="eyebrow">THIS IS YOUR SPACE</p>
+            <h1>My Profile</h1>
+            <p>Share as much or as little about yourself as you want.</p>
+          </div>
+
+          <form id="profileForm" class="content-card">
+            <label for="profileName">Display name</label>
+            <input id="profileName" name="displayName" maxlength="60"
+              autocomplete="name" placeholder="Your name">
+
+            <label for="profileUsername">Username</label>
+            <input id="profileUsername" name="username" maxlength="30"
+              pattern="[A-Za-z0-9_]+" placeholder="your_username">
+
+            <label for="profileBio">Bio</label>
+            <textarea id="profileBio" name="bio" maxlength="300" rows="3"
+              placeholder="A little about you..."></textarea>
+
+            <label for="profilePhoto">Profile photo</label>
+            <input id="profilePhoto" name="photo" type="file" accept="image/*">
+
+            <label for="profileVisibility">Profile visibility</label>
+            <select id="profileVisibility" name="visibility">
+              <option value="public">Public</option>
+              <option value="friends">Friends only</option>
+              <option value="private">Private</option>
+            </select>
+
+            <button type="submit" class="primary-button">Save profile</button>
+            <p id="profileMessage" class="form-message" role="status"></p>
+          </form>
+
+          <div class="content-card">
+            <h2>Account</h2>
+            <p id="accountStatus" class="muted-text">You are not signed in.</p>
+            <button type="button" class="secondary-button" id="logoutButton" hidden>
+              Log out
+            </button>
+            <button type="button" class="danger-button" id="deleteAccountButton" hidden>
+              Request account deletion
+            </button>
+            <p class="muted-text">Account deletion must securely remove or schedule removal of your account data and associated media.</p>
+          </div>
+        </section>
+
+        <!-- NOTIFICATIONS -->
+        <section class="page" id="notifications" data-section="notifications">
+          <div class="page-heading">
+            <p class="eyebrow">WHAT'S NEW</p>
+            <h1>Notifications</h1>
+          </div>
+          <div class="content-card" id="notificationList">
+            <p class="muted-text">Sign in to view your notifications.</p>
+          </div>
+        </section>
+
+        <!-- TERMS -->
+        <section class="page legal-page" id="terms" data-section="terms">
+          <div class="page-heading">
+            <p class="eyebrow">PLEASE READ</p>
+            <h1>Terms & Conditions</h1>
+            <p>These terms must be finalized to match the actual service before public launch.</p>
+          </div>
+          <article class="content-card">
+            <h2>1. Respectful use</h2>
+            <p>Do not use this service to harass, threaten, impersonate, exploit or harm others. Do not publish unlawful content or content that violates another person's rights.</p>
+            <h2>2. Your content</h2>
+            <p>You retain rights to content you create. You are responsible for ensuring you have permission to share uploaded images, audio, videos and other materials.</p>
+            <h2>3. Privacy and visibility</h2>
+            <p>Use the available audience settings carefully. Do not assume that content shared with another person can never be copied or captured outside the service.</p>
+            <h2>4. Messages and collaboration</h2>
+            <p>Private messaging is intended for text. Message requests require acceptance before a regular conversation. Collaborative letters require both collaborators' consent and publication approval.</p>
+            <h2>5. Safety and moderation</h2>
+            <p>Abuse, spam, impersonation and harmful content may be reported and may result in restrictions or account suspension under published moderation procedures.</p>
+            <h2>6. Accounts and termination</h2>
+            <p>Keep your login credentials secure. Account deletion and data-retention procedures must be explained clearly before launch.</p>
+            <h2>7. Changes and contact</h2>
+            <p>The final terms must include the operator's contact details, applicable legal requirements, dispute process and effective date before production release.</p>
+          </article>
+        </section>
+
+        <!-- PRIVACY -->
+        <section class="page legal-page" id="privacy" data-section="privacy">
+          <div class="page-heading">
+            <p class="eyebrow">YOUR TRUST MATTERS</p>
+            <h1>Privacy Policy</h1>
+            <p>This draft must be reviewed against the final implementation and applicable law.</p>
+          </div>
+          <article class="content-card">
+            <h2>1. Information we may process</h2>
+            <p>Depending on implemented features, this may include account details, profile information, posts, feelings, stories, messages, media references, safety reports and technical logs.</p>
+            <h2>2. How information is used</h2>
+            <p>Information may be used to provide account access, display content to permitted audiences, deliver notifications, protect users and maintain service reliability.</p>
+            <h2>3. Visibility and access</h2>
+            <p>Access must be restricted by authentication, authorization rules and the audience settings selected by the content owner. Private messages must be restricted to authorized conversation participants.</p>
+            <h2>4. Service providers</h2>
+            <p>Firebase and Cloudinary may process data required for authentication, database operations or media hosting. The final policy must identify relevant providers and link to their applicable privacy terms.</p>
+            <h2>5. Stories and retention</h2>
+            <p>Stories are intended to expire after 24 hours. Expiration from the interface does not by itself guarantee that stored media, backups or logs have been deleted.</p>
+            <h2>6. Security and reporting</h2>
+            <p>Reasonable safeguards should be implemented. No online service can guarantee absolute security. Reporting, blocking, retention and incident-handling procedures must be documented.</p>
+            <h2>7. Your choices</h2>
+            <p>Users should be able to manage their profile visibility, request account deletion and exercise applicable privacy rights through clearly described procedures.</p>
+            <h2>8. Final policy details</h2>
+            <p>Before launch, add the operator's contact details, effective date, applicable legal basis, retention periods, consent requirements, advertising practices and legally required disclosures.</p>
+          </article>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- LETTER PREVIEW DIALOG -->
+    <dialog id="letterPreviewDialog" class="preview-dialog">
+      <div class="dialog-heading">
+        <h2>Your letter preview</h2>
+        <button type="button" class="icon-button" id="closeLetterPreview"
+          aria-label="Close preview">✕</button>
+      </div>
+      <div class="letter-preview-paper">
+        <p class="eyebrow" id="previewTemplateName">A LETTER FROM THE HEART</p>
+        <h3 id="previewLetterTitle">A letter just for you</h3>
+        <p id="previewLetterBody"></p>
+      </div>
+    </dialog>
+
+    <div id="globalMessage" class="global-message" role="status"
+      aria-live="polite" hidden></div>
+
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
