@@ -11,7 +11,7 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    function validUserProfile(userId) {
+    function validProfile(userId) {
       return request.resource.data.uid == userId
         && request.resource.data.keys().hasOnly([
           'uid',
@@ -37,15 +37,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow create: if isOwner(userId)
-        && validUserProfile(userId);
+        && validProfile(userId);
 
       allow read: if isOwner(userId);
 
       allow update: if isOwner(userId)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.diff(resource.data)
-          .affectedKeys()
-          .hasOnly([
+          .affectedKeys().hasOnly([
             'displayName',
             'bio',
             'photoURL',
@@ -66,7 +65,38 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Deny access to collections not explicitly configured below.
+    match /posts/{postId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'authorId',
+          'authorName',
+          'text',
+          'visibility',
+          'createdAt'
+        ])
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() >= 2
+        && request.resource.data.authorName.size() <= 60
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.visibility in [
+          'public',
+          'private'
+        ]
+        && request.resource.data.createdAt == request.time;
+
+      allow read: if signedIn()
+        && (
+          resource.data.visibility == 'public'
+          || resource.data.authorId == request.auth.uid
+        );
+
+      allow update, delete: if signedIn()
+        && resource.data.authorId == request.auth.uid;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
