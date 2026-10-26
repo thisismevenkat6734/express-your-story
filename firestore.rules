@@ -1,0 +1,74 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function validUserProfile(userId) {
+      return request.resource.data.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'bio',
+          'photoURL',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 2
+        && request.resource.data.displayName.size() <= 60
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 500
+        && request.resource.data.visibility in [
+          'private',
+          'friends',
+          'public'
+        ];
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId)
+        && validUserProfile(userId);
+
+      allow read: if isOwner(userId);
+
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'displayName',
+            'bio',
+            'photoURL',
+            'visibility',
+            'updatedAt'
+          ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 2
+        && request.resource.data.displayName.size() <= 60
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 500
+        && request.resource.data.visibility in [
+          'private',
+          'friends',
+          'public'
+        ];
+
+      allow delete: if false;
+    }
+
+    // Deny access to collections not explicitly configured below.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
