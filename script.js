@@ -1,753 +1,170 @@
-/* Express Your Story — Main Application
-   File: script.js
-*/
-
-import { auth, db } from "./firebase-config.js";
-
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-
-import {
-  doc,
-  setDoc,
-  collection,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-
-const App = (() => {
-  "use strict";
-
-  const $ = (selector, root = document) =>
-    root.querySelector(selector);
-
-  const $$ = (selector, root = document) =>
-    [...root.querySelectorAll(selector)];
-
-  const state = {
-    user: null,
-    authMode: "login",
-    busy: false,
-    stopPublicPosts: null,
-    stopOwnPosts: null,
-    publicPosts: [],
-    ownPosts: []
-  };
-
-  const pageTitles = {
-    home: "Your Feed",
-    feelings: "Express Your Feelings",
-    stories: "Stories",
-    letters: "Love Letters",
-    messages: "Messages",
-    friends: "Friends",
-    notifications: "Notifications",
-    profile: "My Profile",
-    terms: "Terms & Conditions",
-    privacy: "Privacy Policy",
-    auth: "Welcome"
-  };
-
-  function toast(message, type = "info") {
-    const element = $("#toast");
-
-    if (!element) {
-      console.log(message);
-      return;
-    }
-
-    element.textContent = message;
-    element.dataset.type = type;
-    element.classList.add("show");
-
-    clearTimeout(toast.timer);
-
-    toast.timer = setTimeout(() => {
-      element.classList.remove("show");
-    }, 3500);
-  }
-
-  function setMessage(element, message, type = "error") {
-    if (!element) return;
-
-    element.textContent = message;
-    element.dataset.type = type;
-    element.dataset.type = type;
-    element.hidden = !message;
-  }
-
-  function friendlyError(error) {
-    const errors = {
-      "auth/email-already-in-use":
-        "This email is already registered. Please log in.",
-      "auth/invalid-email":
-        "Please enter a valid email address.",
-      "auth/invalid-credential":
-        "Email or password is incorrect.",
-      "auth/user-not-found":
-        "No account was found with this email.",
-      "auth/wrong-password":
-        "Email or password is incorrect.",
-      "auth/weak-password":
-        "Use a password with at least 6 characters.",
-      "auth/too-many-requests":
-        "Too many attempts. Please try again later.",
-      "auth/network-request-failed":
-        "Network error. Check your internet connection.",
-      "auth/operation-not-allowed":
-        "Enable Email/Password sign-in in Firebase Authentication.",
-      "auth/unauthorized-domain":
-        "Add this website domain to Firebase authorized domains.",
-      "permission-denied":
-        "Firestore denied this action. Check your Firestore Rules."
-    };
-
-    return errors[error?.code] ||
-      "Something went wrong. Please try again.";
-  }
-
-  function showPage(pageName) {
-    if (!state.user && pageName !== "auth") {
-      pageName = "auth";
-    }
-
-    const target = $(`#${CSS.escape(pageName)}`);
-
-    if (!target) {
-      toast("This page is not available.");
-      return;
-    }
-
-    $$(".page").forEach(page => {
-      page.hidden = page.id !== pageName;
-      page.classList.toggle("active", page.id === pageName);
-    });
-
-    $$("[data-page]").forEach(link => {
-      link.classList.toggle(
-        "active",
-        link.dataset.page === pageName
-      );
-    });
-
-    const heading = $("#pageHeading");
-
-    if (heading) {
-      heading.textContent =
-        pageTitles[pageName] || "Express Your Story";
-    }
-
-    $("#sidebar")?.classList.remove("open");
-    $("#sidebarBackdrop")?.classList.remove("show");
-
-    state.currentPage = pageName;
-  }
-
-  function setAuthMode(mode) {
-    state.authMode = mode === "signup" ? "signup" : "login";
-
-    const signup = state.authMode === "signup";
-
-    if ($("#authTitle")) {
-      $("#authTitle").textContent =
-        signup ? "Create your account" : "Welcome back";
-    }
-
-    if ($("#authDescription")) {
-      $("#authDescription").textContent = signup
-        ? "Create a safe space to express your story."
-        : "Sign in to continue your story.";
-    }
-
-    if ($("#authSubmit")) {
-      $("#authSubmit").textContent =
-        signup ? "Create account" : "Log in";
-    }
-
-    if ($("#authName")) {
-      $("#authName").hidden = !signup;
-      $("#authName").required = signup;
-    }
-
-    if ($("#authNameLabel")) {
-      $("#authNameLabel").hidden = !signup;
-    }
-
-    if ($("#authConfirmPassword")) {
-      $("#authConfirmPassword").hidden = !signup;
-      $("#authConfirmPassword").required = signup;
-    }
-
-    if ($("#confirmPasswordLabel")) {
-      $("#confirmPasswordLabel").hidden = !signup;
-    }
-
-    if ($("#forgotPasswordButton")) {
-      $("#forgotPasswordButton").hidden = signup;
-    }
-
-    setMessage($("#authMessage"), "");
-  }
-
-  function updateUserUI(user) {
-    if ($("#sidebar")) {
-      $("#sidebar").hidden = !user;
-    }
-
-    const avatar = $("#topAvatar");
-
-    if (avatar) {
-      avatar.textContent = (
-        user?.displayName || user?.email || "U"
-      ).trim().charAt(0).toUpperCase();
-    }
-
-    if (user && $("#profileName")) {
-      $("#profileName").value = user.displayName || "";
-    }
-
-    if (user && $("#profileDisplayName")) {
-      $("#profileDisplayName").textContent =
-        user.displayName || "Your profile";
-    }
-
-    if ($("#authEmail")) $("#authEmail").value = "";
-    if ($("#authPassword")) $("#authPassword").value = "";
-    if ($("#authConfirmPassword")) {
-      $("#authConfirmPassword").value = "";
-    }
-  }
-
-  async function createAccount(name, email, password) {
-    const credential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-
-    await updateProfile(credential.user, {
-      displayName: name
-    });
-
-    try {
-      await setDoc(doc(db, "users", credential.user.uid), {
-        uid: credential.user.uid,
-        displayName: name,
-        email: credential.user.email,
-        bio: "",
-        photoURL: "",
-        visibility: "private",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      console.error("Profile save error:", error);
-      toast(
-        "Account created, but profile saving failed. Check Firestore Rules.",
-        "error"
-      );
-    }
-  }
-
-  async function handleAuthSubmit(event) {
-    event.preventDefault();
-
-    if (state.busy) return;
-
-    const email = ($("#authEmail")?.value || "").trim();
-    const password = $("#authPassword")?.value || "";
-    const name = ($("#authName")?.value || "").trim();
-    const confirm = $("#authConfirmPassword")?.value || "";
-
-    const button = $("#authSubmit");
-    const message = $("#authMessage");
-
-    setMessage(message, "");
-
-    if (!email || !password) {
-      setMessage(message, "Enter your email and password.");
-      return;
-    }
-
-    if (state.authMode === "signup") {
-      if (name.length < 2 || name.length > 60) {
-        setMessage(message, "Name must contain 2 to 60 characters.");
-        return;
-      }
-
-      if (password.length < 6) {
-        setMessage(message, "Password must contain at least 6 characters.");
-        return;
-      }
-
-      if (password !== confirm) {
-        setMessage(message, "Passwords do not match.");
-        return;
-      }
-    }
-
-    state.busy = true;
-
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Please wait...";
-    }
-
-    try {
-      if (state.authMode === "signup") {
-        await createAccount(name, email, password);
-        toast("Account created successfully!", "success");
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast("Welcome back!", "success");
-      }
-    } catch (error) {
-      console.error("Authentication error:", error);
-      setMessage(message, friendlyError(error));
-    } finally {
-      state.busy = false;
-
-      if (button) {
-        button.disabled = false;
-        button.textContent =
-          state.authMode === "signup" ? "Create account" : "Log in";
-      }
-    }
-  }
-
-  async function resetPassword() {
-    const email = ($("#authEmail")?.value || "").trim();
-
-    if (!email) {
-      setMessage($("#authMessage"), "Enter your email address first.");
-      $("#authEmail")?.focus();
-      return;
-    }
-
-    try {
-      await sendPasswordResetEmail(auth, email);
-
-      setMessage(
-        $("#authMessage"),
-        "If an account exists for this email, a reset email will be sent.",
-        "success"
-      );
-    } catch (error) {
-      setMessage($("#authMessage"), friendlyError(error));
-    }
-  }
-
-  async function logout() {
-    try {
-      await signOut(auth);
-      toast("Logged out successfully.", "success");
-    } catch (error) {
-      toast(friendlyError(error), "error");
-    }
-  }
-
-  function formatDate(timestamp) {
-    if (!timestamp || typeof timestamp.toDate !== "function") {
-      return "Just now";
-    }
-
-    return timestamp.toDate().toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short"
-    });
-  }
-
-  function createPostCard(post) {
-    const article = document.createElement("article");
-    article.className = "card post-card";
-
-    const header = document.createElement("div");
-    header.className = "post-header";
-
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent =
-      (post.authorName || "U").charAt(0).toUpperCase();
-
-    const authorDetails = document.createElement("div");
-
-    const author = document.createElement("strong");
-    author.textContent = post.authorName || "User";
-
-    const date = document.createElement("small");
-    date.textContent = formatDate(post.createdAt);
-
-    authorDetails.append(author, date);
-    header.append(avatar, authorDetails);
-
-    const content = document.createElement("p");
-    content.className = "post-content";
-    content.textContent = post.text || "";
-
-    article.append(header, content);
-
-    if (post.authorId === state.user?.uid) {
-      const badge = document.createElement("small");
-      badge.className = "post-owner-label";
-      badge.textContent = "Your post";
-      article.append(badge);
-    }
-
-    return article;
-  }
-
-  function renderFeed() {
-    const feed = $("#feedList");
-    if (!feed) return;
-
-    feed.replaceChildren();
-
-    const allPosts = [
-      ...state.publicPosts,
-      ...state.ownPosts
-    ];
-
-    const uniquePosts = [
-      ...new Map(allPosts.map(post => [post.id, post])).values()
-    ];
-
-    uniquePosts.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis?.() || 0;
-      const bTime = b.createdAt?.toMillis?.() || 0;
-      return bTime - aTime;
-    });
-
-    if (uniquePosts.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent =
-        "No posts yet. Share your first story with the community.";
-      feed.append(empty);
-      return;
-    }
-
-    uniquePosts.forEach(post => {
-      feed.append(createPostCard(post));
-    });
-  }
-
-  function stopPostListeners() {
-    state.stopPublicPosts?.();
-    state.stopOwnPosts?.();
-
-    state.stopPublicPosts = null;
-    state.stopOwnPosts = null;
-    state.publicPosts = [];
-    state.ownPosts = [];
-  }
-
-  function startPostListeners(user) {
-    stopPostListeners();
-
-    if (!user) {
-      renderFeed();
-      return;
-    }
-
-    const posts = collection(db, "posts");
-
-    const publicQuery = query(
-      posts,
-      where("visibility", "==", "public"),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-
-    const ownQuery = query(
-      posts,
-      where("authorId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-
-    state.stopPublicPosts = onSnapshot(
-      publicQuery,
-      snapshot => {
-        state.publicPosts = snapshot.docs.map(item => ({
-          id: item.id,
-          ...item.data()
-        }));
-
-        renderFeed();
-      },
-      error => {
-        console.error("Public feed error:", error);
-        toast("Could not load public posts. Check Firestore Rules and indexes.", "error");
-      }
-    );
-
-    state.stopOwnPosts = onSnapshot(
-      ownQuery,
-      snapshot => {
-        state.ownPosts = snapshot.docs.map(item => ({
-          id: item.id,
-          ...item.data()
-        }));
-
-        renderFeed();
-      },
-      error => {
-        console.error("Your posts error:", error);
-        toast("Could not load your posts. Check Firestore Rules and indexes.", "error");
-      }
-    );
-  }
-
-  async function publishPost(event) {
-    event.preventDefault();
-
-    if (!state.user) {
-      toast("Please log in before publishing a post.", "error");
-      return;
-    }
-
-    const text = ($("#postText")?.value || "").trim();
-    const message = $("#postMessage");
-    const button = $("#postForm button[type='submit']");
-
-    setMessage(message, "");
-
-    if (!text) {
-      setMessage(message, "Write something before publishing.");
-      return;
-    }
-
-    if (text.length > 2000) {
-      setMessage(message, "Posts cannot exceed 2000 characters.");
-      return;
-    }
-
-    const authorName =
-      state.user.displayName?.trim() ||
-      state.user.email?.split("@")[0] ||
-      "User";
-
-    if (authorName.length < 2 || authorName.length > 60) {
-      setMessage(message, "Your profile name must contain 2 to 60 characters.");
-      return;
-    }
-
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Publishing...";
-    }
-
-    try {
-      await addDoc(collection(db, "posts"), {
-        authorId: state.user.uid,
-        authorName,
-        text,
-        visibility: "public",
-        createdAt: serverTimestamp()
-      });
-
-      $("#postText").value = "";
-      toast("Your post has been published!", "success");
-    } catch (error) {
-      console.error("Publish post error:", error);
-      setMessage(message, friendlyError(error));
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = "Publish";
-      }
-    }
-  }
-
-  function renderProfilePreview() {
-    const user = state.user;
-    if (!user) return;
-
-    const name = $("#profileName");
-    const bio = $("#profileBio");
-    const shownName = name?.value?.trim() || user.displayName || "Your name";
-
-    if ($("#profileDisplayName")) {
-      $("#profileDisplayName").textContent = shownName;
-    }
-
-    if ($("#profileBioPreview")) {
-      $("#profileBioPreview").textContent = bio?.value?.trim() || "";
-    }
-
-    if ($("#profileAvatar")) {
-      $("#profileAvatar").textContent =
-        shownName.charAt(0).toUpperCase();
-    }
-  }
-
-  function setupNavigation() {
-    $$("[data-page]").forEach(link => {
-      link.addEventListener("click", event => {
-        event.preventDefault();
-        showPage(link.dataset.page);
-      });
-    });
-
-    $$("[data-auth-mode]").forEach(button => {
-      button.addEventListener("click", () => {
-        setAuthMode(button.dataset.authMode);
-      });
-    });
-
-    $("#authForm")?.addEventListener("submit", handleAuthSubmit);
-    $("#forgotPasswordButton")?.addEventListener("click", resetPassword);
-
-    $("#logoutButton")?.addEventListener("click", logout);
-    $("#menuLogoutButton")?.addEventListener("click", logout);
-
-    $("#moreButton")?.addEventListener("click", () => {
-      const menu = $("#moreMenu");
-      if (menu) menu.hidden = !menu.hidden;
-    });
-
-    $("#menuButton")?.addEventListener("click", () => {
-      $("#sidebar")?.classList.toggle("open");
-      $("#sidebarBackdrop")?.classList.toggle("show");
-    });
-
-    $("#sidebarBackdrop")?.addEventListener("click", () => {
-      $("#sidebar")?.classList.remove("open");
-      $("#sidebarBackdrop")?.classList.remove("show");
-    });
-
-    $("#profileName")?.addEventListener("input", renderProfilePreview);
-    $("#profileBio")?.addEventListener("input", renderProfilePreview);
-
-    $("#profileForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("Profile editing is not connected yet.", "error");
-    });
-  }
-
-  function setupContentForms() {
-    $("#postForm")?.addEventListener("submit", publishPost);
-
-    $("#feelingForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("Feelings saving will be added next.", "info");
-    });
-
-    $("#storyForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("Story publishing will be added next.", "info");
-    });
-
-    $("#letterForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("Letter saving will be added next.", "info");
-    });
-
-    $("#messageForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("Private messaging will be added next.", "info");
-    });
-
-    $("#userSearchForm")?.addEventListener("submit", event => {
-      event.preventDefault();
-      toast("User search will be added next.", "info");
-    });
-
-    $("#markNotificationsRead")?.addEventListener("click", () => {
-      toast("Notifications will be added next.", "info");
-    });
-
-    $("#deleteAccountButton")?.addEventListener("click", () => {
-      toast("Secure account deletion is not implemented yet.", "info");
-    });
-  }
-
-  function setupFeelings() {
-    $$("#feelingChoices [data-feeling]").forEach(button => {
-      button.addEventListener("click", () => {
-        $$("#feelingChoices [data-feeling]").forEach(item => {
-          item.classList.remove("selected");
-          item.setAttribute("aria-pressed", "false");
-        });
-
-        button.classList.add("selected");
-        button.setAttribute("aria-pressed", "true");
-
-        if ($("#selectedFeeling")) {
-          $("#selectedFeeling").value = button.dataset.feeling;
-        }
-      });
-    });
-  }
-
-  function setupLetterTemplates() {
-    const select = $("#letterTemplate");
-    if (!select) return;
-
-    const templates = {
-      love: ["A message from my heart", "There is something I have wanted to tell you..."],
-      confession: ["Something I want you to know", "I want to be honest about how I feel..."],
-      apology: ["I'm sorry", "I have been thinking about what happened..."],
-      gratitude: ["Thank you", "I want you to know how much I appreciate you..."],
-      friendship: ["To a special friend", "Our friendship means a lot to me..."],
-      missing: ["I miss you", "There are moments when I wish you were here..."],
-      birthday: ["A birthday message", "Wishing you a day filled with happiness..."],
-      encouragement: ["You can do this", "I hope you remember how strong and capable you are..."],
-      closure: ["Words I need to say", "I have been reflecting on everything..."],
-      unsent: ["An unsent letter", "These are words I have kept to myself..."],
-      future: ["A letter to the future", "When you read this, I hope..."],
-      custom: ["", ""]
-    };
-
-    select.addEventListener("change", () => {
-      const template = templates[select.value];
-      if (!template) return;
-
-      if ($("#letterTitle")) $("#letterTitle").value = template[0];
-      if ($("#letterBody")) $("#letterBody").value = template[1];
-    });
-  }
-
-  function startAuthListener() {
-    onAuthStateChanged(auth, user => {
-      state.user = user;
-      updateUserUI(user);
-
-      if (user) {
-        showPage("home");
-        startPostListeners(user);
-      } else {
-        stopPostListeners();
-        renderFeed();
-        showPage("auth");
-      }
-    });
-  }
-
-  function init() {
-    setupNavigation();
-    setupContentForms();
-    setupFeelings();
-    setupLetterTemplates();
-
-    setAuthMode("login");
-    startAuthListener();
-
-    console.info("Express Your Story initialized.");
-  }
-
-  return { init };
-})();
-
-document.addEventListener("DOMContentLoaded", App.init);
+import { auth, storage } from "./firebase-config.js";
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const state = { user:null, profile:null, selectedFeeling:"", selectedFriend:null, friends:[] };
+const escapeText = (v) => String(v ?? "");
+function toast(message, type="info") {
+  const el=$("#toast"); if(!el){console.log(message);return;}
+  el.textContent=message; el.dataset.type=type; el.hidden=false; el.classList.add("show");
+  clearTimeout(toast.timer); toast.timer=setTimeout(()=>{el.classList.remove("show");el.hidden=true;},3500);
+}
+function message(id, text, type="error") { const el=typeof id==="string"?$(id):id; if(el){el.textContent=text;el.dataset.type=type;el.hidden=!text;} }
+function node(tag, text, cls) { const el=document.createElement(tag); if(text!==undefined)el.textContent=escapeText(text); if(cls)el.className=cls; return el; }
+function dateText(v) { try { const d=v?.toDate?v.toDate():(v?new Date(typeof v._seconds==="number"?v._seconds*1000:v):null); return d&&!isNaN(d)?d.toLocaleString():"Just now"; } catch{return "Just now";} }
+async function api(path, options={}) {
+  const user=auth.currentUser; if(!user) throw new Error("Please log in first.");
+  const token=await user.getIdToken();
+  const res=await fetch(`/api${path}`,{...options,headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`,...options.headers}});
+  const data=await res.json().catch(()=>({error:"Server returned an invalid response."}));
+  if(!res.ok) throw new Error(data.error||"Request failed.");
+  return data;
+}
+function busy(form,on) { const b=form?.querySelector('[type="submit"]'); if(b){b.disabled=on;b.dataset.old ||= b.textContent;if(on)b.textContent="Please wait…";else b.textContent=b.dataset.old;} }
+function setPage(page) {
+  if(!state.user && page!=="auth") page="auth";
+  const target=$("#"+CSS.escape(page)); if(!target){toast("Page not found.");return;}
+  $$(".page").forEach(p=>{p.hidden=p.id!==page;p.classList.toggle("active",p.id===page);});
+  $$("[data-page]").forEach(a=>a.classList.toggle("active",a.dataset.page===page));
+  const title={home:"Your Feed",feelings:"Express Your Feelings",stories:"Stories",letters:"Letters",messages:"Messages",friends:"Friends",notifications:"Notifications",profile:"My Profile",terms:"Terms & Conditions",privacy:"Privacy Policy",auth:"Welcome"};
+  if($("#pageHeading"))$("#pageHeading").textContent=title[page]||"Express Your Story";
+  $("#sidebar") && ($("#sidebar").hidden=!state.user);
+  $("#sidebar")?.classList.remove("open"); $("#sidebarBackdrop")?.classList.remove("show");
+}
+function showList(container, items, render, emptyText) {
+  const el=typeof container==="string"?$(container):container; if(!el)return;
+  el.replaceChildren();
+  if(!items?.length){el.append(node("p",emptyText,"empty-state"));return;}
+  items.forEach(item=>el.append(render(item)));
+}
+function itemCard(title, body, meta="", extra) {
+  const card=node("article",undefined,"card post-card");
+  const h=node("strong",title); const p=node("p",body,"post-content"); const small=node("small",meta);
+  card.append(h,p,small); if(extra)card.append(extra); return card;
+}
+async function loadProfile() {
+  const d=await api("/me/profile"); state.profile=d.profile;
+  const p=state.profile, initial=(p.displayName||"U").charAt(0).toUpperCase();
+  if($("#topAvatar"))$("#topAvatar").textContent=initial;
+  if($("#composerAvatar"))$("#composerAvatar").textContent=initial;
+  if($("#profileAvatar")) { $("#profileAvatar").textContent=initial; if(p.photoURL){$("#profileAvatar").style.backgroundImage=`url("${p.photoURL.replace(/["\\]/g,"")}")`;$("#profileAvatar").textContent="";} }
+  if($("#profileName"))$("#profileName").value=p.displayName||"";
+  if($("#profileBio"))$("#profileBio").value=p.bio||"";
+  if($("#profileVisibility"))$("#profileVisibility").value=p.visibility||"private";
+  if($("#profileDisplayName"))$("#profileDisplayName").textContent=p.displayName||"Your profile";
+  if($("#profileBioPreview"))$("#profileBioPreview").textContent=p.bio||"";
+  if($("#profileVisibilityPreview"))$("#profileVisibilityPreview").textContent=p.visibility||"private";
+}
+async function loadPosts() {
+  const d=await api("/posts");
+  showList("#feedList",d.items,(p)=>itemCard(p.authorName||"User",p.text,dateText(p.createdAt)), "No posts yet. Share your first story.");
+}
+async function loadFeelings() {
+  const d=await api("/feelings");
+  showList("#feelingsList",d.items,(p)=>itemCard(`${p.feeling||"Feeling"} · ${p.authorName||"You"}`,p.text,dateText(p.createdAt)),"No feelings shared yet.");
+}
+async function loadStories() {
+  const d=await api("/stories");
+  showList("#storyGallery",d.items,(p)=>{
+    const c=itemCard(p.authorName||"Your story",p.text,dateText(p.createdAt));
+    if(p.mediaURL){const m=p.mediaType?.startsWith("video")?node("video"):node("img");m.src=p.mediaURL;m.controls=p.mediaType?.startsWith("video")||false;m.alt="Story media";m.style.maxWidth="100%";m.style.borderRadius="12px";c.append(m);}
+    return c;
+  },"No stories yet.");
+}
+async function loadLetters() {
+  const d=await api("/letters");
+  showList("#lettersList",d.items,(p)=>itemCard(p.title||"Letter",p.body,`${p.authorId===state.user.uid?"To":"From"} ${p.authorId===state.user.uid?(p.recipientName||"recipient"):(p.authorName||"someone")} · ${dateText(p.createdAt)}`),"No letters yet.");
+}
+async function loadFriends() {
+  const [friends,requests]=await Promise.all([api("/friends"),api("/friend-requests")]);
+  state.friends=friends.items;
+  showList("#friendsList",friends.items,(p)=>{
+    const row=node("div",undefined,"card user-result"); row.append(node("strong",p.displayName));
+    const b=node("button","Message","secondary-button");b.type="button";b.addEventListener("click",()=>{state.selectedFriend=p;$("#conversationHeader").textContent=p.displayName;$("#messageText").disabled=false;$("#sendMessageButton").disabled=false;loadMessages(p.uid);setPage("messages");});
+    row.append(b);return row;
+  },"No friends yet. Search for people to connect.");
+  showList("#friendRequests",requests.items,(p)=>{
+    const row=node("div",undefined,"card user-result");row.append(node("strong",p.displayName));
+    const b=node("button","Accept request","primary-button");b.type="button";b.addEventListener("click",async()=>{try{await api(`/friend-requests/${encodeURIComponent(p.id)}/accept`,{method:"POST",body:"{}"});toast("Friend request accepted.","success");await loadFriends();}catch(e){toast(e.message,"error");}});
+    row.append(b);return row;
+  },"No pending friend requests.");
+  const list=$("#conversationList"); if(list){list.replaceChildren();state.friends.forEach(p=>{const b=node("button",p.displayName,"conversation-button");b.type="button";b.addEventListener("click",()=>{state.selectedFriend=p;$("#conversationHeader").textContent=p.displayName;$("#messageText").disabled=false;$("#sendMessageButton").disabled=false;loadMessages(p.uid);});list.append(b);});}
+}
+async function loadMessages(uid) {
+  try {const d=await api(`/messages/${encodeURIComponent(uid)}`);showList("#messageList",d.items,(m)=>itemCard(m.from===state.user.uid?"You":"Friend",m.text,dateText(m.createdAt)), "No messages yet.");}
+  catch(e){message("#messageStatus",e.message);}
+}
+async function loadNotifications() {
+  const d=await api("/notifications");
+  showList("#notificationList",d.items,(n)=>itemCard(n.type||"Notification",n.text,dateText(n.createdAt)), "No notifications.");
+  const unread=d.items.filter(n=>!n.read).length;if($("#notificationCount"))$("#notificationCount").textContent=unread?String(unread):"";
+}
+async function loadProfilePosts() {
+  const d=await api("/posts");const own=d.items.filter(p=>p.authorId===state.user.uid);
+  showList("#profilePosts",own,(p)=>itemCard("Your post",p.text,dateText(p.createdAt)),"You have not posted yet.");
+}
+async function refreshAll() { try{await loadProfile();await Promise.all([loadPosts(),loadFeelings(),loadStories(),loadLetters(),loadFriends(),loadNotifications(),loadProfilePosts()]);}catch(e){toast(e.message,"error");} }
+
+$("#authForm")?.addEventListener("submit",async e=>{
+  e.preventDefault();const form=e.currentTarget;busy(form,true);message("#authMessage","");
+  try{
+    const email=$("#authEmail").value.trim().toLowerCase(), password=$("#authPassword").value;
+    if($("#authTitle").textContent.toLowerCase().includes("create")){
+      const name=$("#authName").value.trim();if(name.length<2||name.length>60)throw Error("Name must be 2–60 characters.");
+      if(password.length<8)throw Error("Password must contain at least 8 characters.");
+      if(password!==$("#authConfirmPassword").value)throw Error("Passwords do not match.");
+      const c=await createUserWithEmailAndPassword(auth,email,password);await updateProfile(c.user,{displayName:name});
+      await api("/me/profile",{method:"PUT",body:JSON.stringify({displayName:name,bio:"",photoURL:"",visibility:"private"})});
+    } else { await signInWithEmailAndPassword(auth,email,password); }
+  }catch(e){message("#authMessage",e.message||"Authentication failed.");}finally{busy(form,false);}
+});
+$("#forgotPasswordButton")?.addEventListener("click",async()=>{const email=$("#authEmail").value.trim();if(!email){message("#authMessage","Enter your email first.");return;}try{await sendPasswordResetEmail(auth,email);message("#authMessage","If the account exists, a reset email has been sent.","success");}catch(e){message("#authMessage",e.message);}});
+$$("[data-page]").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();setPage(a.dataset.page);}));
+$$("[data-auth-mode]").forEach(b=>b.addEventListener("click",()=>{
+  const signup=b.dataset.authMode==="signup";
+  $("#authTitle").textContent=signup?"Create your account":"Welcome back";
+  $("#authDescription").textContent=signup?"Create a safe space to express your story.":"Continue your story.";
+  $("#authSubmit").textContent=signup?"Create account":"Log in";
+  $("#authName").hidden=!signup;$("#authName").required=signup;
+  $("#authNameLabel").hidden=!signup;
+  $("#authConfirmPassword").hidden=!signup;$("#authConfirmPassword").required=signup;
+  $("#confirmPasswordLabel").hidden=!signup;
+  $("#forgotPasswordButton").hidden=signup;
+  $$("[data-auth-mode]").forEach(x=>x.classList.toggle("active",x===b));
+  message("#authMessage","");
+}));
+$("#logoutButton")?.addEventListener("click",()=>signOut(auth));
+$("#menuLogoutButton")?.addEventListener("click",()=>signOut(auth));
+$("#moreButton")?.addEventListener("click",()=>$("#moreMenu")?.classList.toggle("show"));
+$("#menuButton")?.addEventListener("click",()=>$("#sidebar")?.classList.toggle("open"));
+$("#sidebarBackdrop")?.addEventListener("click",()=>{$("#sidebar")?.classList.remove("open");$("#sidebarBackdrop")?.classList.remove("show");});
+$("#login-tab")?.addEventListener("click",()=>{if($("#authTitle"))$("#authTitle").textContent="Welcome back";if($("#authName"))$("#authName").hidden=true;if($("#authConfirmPassword"))$("#authConfirmPassword").hidden=true;});
+$("#signup-tab")?.addEventListener("click",()=>{if($("#authTitle"))$("#authTitle").textContent="Create your account";if($("#authName"))$("#authName").hidden=false;if($("#authConfirmPassword"))$("#authConfirmPassword").hidden=false;});
+
+$("#postForm")?.addEventListener("submit",async e=>{e.preventDefault();busy(e.currentTarget,true);try{await api("/posts",{method:"POST",body:JSON.stringify({text:$("#postText").value,visibility:"public"})});$("#postText").value="";message("#postMessage","Posted successfully.","success");await loadPosts();}catch(err){message("#postMessage",err.message);}finally{busy(e.currentTarget,false);}});
+$("#feelingChoices")?.addEventListener("click",e=>{const b=e.target.closest("[data-feeling]");if(!b)return;state.selectedFeeling=b.dataset.feeling;$("#selectedFeeling").value=state.selectedFeeling;$$("[data-feeling]").forEach(x=>x.classList.toggle("selected",x===b));});
+$("#feelingForm")?.addEventListener("submit",async e=>{e.preventDefault();busy(e.currentTarget,true);try{await api("/feelings",{method:"POST",body:JSON.stringify({feeling:state.selectedFeeling,text:$("#feelingText").value,visibility:$("#feelingVisibility").value})});$("#feelingText").value="";message("#feelingMessage","Feeling shared.","success");await loadFeelings();}catch(err){message("#feelingMessage",err.message);}finally{busy(e.currentTarget,false);}});
+async function upload(file, folder) {
+  if(!file)return ""; if(file.size>15*1024*1024)throw Error("File must be smaller than 15 MB.");
+  const allowed=file.type.startsWith("image/")||["video/mp4","video/webm"].includes(file.type);
+  if(!allowed)throw Error("Only images, MP4, or WebM videos are supported.");
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(-80);
+  const path=`users/${state.user.uid}/${folder}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  const r=storageRef(storage,path);await uploadBytes(r,file,{contentType:file.type});return await getDownloadURL(r);
+}
+$("#storyForm")?.addEventListener("submit",async e=>{e.preventDefault();busy(e.currentTarget,true);try{const f=$("#storyMedia").files[0];const mediaURL=await upload(f,"stories");await api("/stories",{method:"POST",body:JSON.stringify({text:$("#storyText").value.trim()||(f?"Shared a story":"") ,visibility:$("#storyVisibility").value,mediaURL,mediaType:f?.type||""})});$("#storyText").value="";$("#storyMedia").value="";message("#storyMessage","Story shared.","success");await loadStories();}catch(err){message("#storyMessage",err.message);}finally{busy(e.currentTarget,false);}});
+$("#letterForm")?.addEventListener("submit",async e=>{e.preventDefault();busy(e.currentTarget,true);try{await api("/letters",{method:"POST",body:JSON.stringify({recipientId:$("#letterRecipient").value.trim(),title:$("#letterTitle").value,body:$("#letterBody").value,visibility:$("#letterVisibility").value})});$("#letterBody").value="";message("#letterMessage","Letter sent.","success");await loadLetters();}catch(err){message("#letterMessage",err.message);}finally{busy(e.currentTarget,false);}});
+$("#userSearchForm")?.addEventListener("submit",async e=>{e.preventDefault();try{const d=await api(`/users/search?q=${encodeURIComponent($("#userSearch").value.trim())}`);showList("#searchResults",d.users,p=>{const row=node("div",undefined,"card user-result");row.append(node("strong",p.displayName),node("p",p.bio||""));const b=node("button","Add friend","primary-button");b.type="button";b.addEventListener("click",async()=>{try{await api(`/friend-requests/${encodeURIComponent(p.uid)}`,{method:"POST",body:"{}"});toast("Friend request sent.","success");b.disabled=true;}catch(err){toast(err.message,"error");}});row.append(b);return row;},"No public profiles found.");}catch(err){message("#searchResults",err.message);}});
+$("#messageForm")?.addEventListener("submit",async e=>{e.preventDefault();if(!state.selectedFriend)return;busy(e.currentTarget,true);try{await api(`/messages/${encodeURIComponent(state.selectedFriend.uid)}`,{method:"POST",body:JSON.stringify({text:$("#messageText").value})});$("#messageText").value="";message("#messageStatus","Message sent.","success");await loadMessages(state.selectedFriend.uid);}catch(err){message("#messageStatus",err.message);}finally{busy(e.currentTarget,false);}});
+$("#profileForm")?.addEventListener("submit",async e=>{e.preventDefault();busy(e.currentTarget,true);try{let photoURL=state.profile?.photoURL||"";const file=$("#profilePhoto").files[0];if(file)photoURL=await upload(file,"profile");const d=await api("/me/profile",{method:"PUT",body:JSON.stringify({displayName:$("#profileName").value,bio:$("#profileBio").value,photoURL,visibility:$("#profileVisibility").value})});state.profile=d.profile;message("#profileMessage","Profile saved.","success");await loadProfile();}catch(err){message("#profileMessage",err.message);}finally{busy(e.currentTarget,false);}});
+$("#markNotificationsRead")?.addEventListener("click",async()=>{try{await api("/notifications/read",{method:"PATCH",body:"{}"});await loadNotifications();toast("Notifications marked as read.","success");}catch(e){toast(e.message,"error");}});
+$("#deleteAccountButton")?.addEventListener("click",async()=>{if(!confirm("Permanently delete your account and associated data? This cannot be undone."))return;try{await api("/me",{method:"DELETE"});await signOut(auth);message("#accountMessage","Account deleted.","success");}catch(e){message("#accountMessage",e.message);}});
+
+onAuthStateChanged(auth,async user=>{
+  state.user=user;
+  if($("#sidebar"))$("#sidebar").hidden=!user;
+  if(user){try{await refreshAll();setPage("home");}catch(e){toast(e.message,"error");setPage("home");}}
+  else {state.profile=null;setPage("auth");}
+});
