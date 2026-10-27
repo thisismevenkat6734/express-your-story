@@ -1,6 +1,38 @@
-
 {
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20"
+  },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "functions/**",
+      "tests/**",
+      "README.md",
+      "firestore.rules",
+      "storage.rules",
+      "firestore.indexes.json",
+      "functions/package.json",
+      "functions/package-lock.json"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "functionId": "api",
+          "region": "asia-south1"
+        }
+      }
+    ]
   }
 }
