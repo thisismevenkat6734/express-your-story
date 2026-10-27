@@ -1,0 +1,19 @@
+{
+  "name": "express-your-story-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions,firestore,auth,hosting",
+    "deploy": "firebase deploy",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.2"
+  },
+  "devDependencies": {}
+}
